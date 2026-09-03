@@ -23,35 +23,35 @@ exercise the parts of a real search system that CRUD tutorials skip:
 - **Observability from day one** — `pg_stat_statements`, Prometheus + Grafana, and pgHero are
   part of the stack, not an afterthought bolted on later
 
-The goal is a project I can talk through in a technical interview at the level of "why", not
-just "what I used" — full rationale in [`SPEC.md`](./SPEC.md).
-
 ## Tech stack
 
-| Layer | Technology |
-|---|---|
-| API | FastAPI |
-| GraphQL | Strawberry (code-first, async) |
-| Database | PostgreSQL 16 + SQLAlchemy 2.0 (async) + Alembic |
-| Search | Elasticsearch 8.x |
-| Event bus | Kafka (KRaft mode) + aiokafka |
-| Auth | Argon2id/bcrypt password hashing, JWT access + refresh tokens |
-| Monitoring | Prometheus, Grafana, postgres_exporter, pgHero |
-| Infra | Docker Compose |
+| Layer        | Technology                                                    |
+|--------------|---------------------------------------------------------------|
+| API          | FastAPI                                                       |
+| GraphQL      | Strawberry (code-first, async)                                |
+| Database     | PostgreSQL 16 + SQLAlchemy 2.0 (async) + Alembic              |
+| Search       | Elasticsearch 8.x                                             |
+| Event bus    | Kafka (KRaft mode) + aiokafka                                 |
+| Auth         | Argon2id/bcrypt password hashing, JWT access + refresh tokens |
+| Monitoring   | Prometheus, Grafana, postgres_exporter, pgHero                |
+| Infra        | Docker Compose                                                |
 
 ## Getting started
 
 ```bash
+cp .env.example .env 
 docker compose up -d
 ```
 
-See [`DEVELOPMENT.md`](./DEVELOPMENT.md) for the full list of local service URLs (Kafka UI,
-Kibana, Grafana, pgHero) and how to get started with each part of the stack.
+## Contributing / branching model
+
+`main` and `develop` are protected — all work happens on `feature/<issue-number>-<slug>` branches
+merged into `develop` via PR, releases go through `release/vX.Y.Z`.
 
 ## Project status
 
 Early stage — infrastructure and design are in place, application code is in progress.
-Full scope, data model, and a step-by-step build roadmap live in [`SPEC.md`](./SPEC.md).
+Full scope, data model, and a step-by-step build app.
 
 ## License
 
