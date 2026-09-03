@@ -1,0 +1,227 @@
+version: "3.9"
+
+# ==============================================================================
+# RecipeGraph project stack: FastAPI + Strawberry GraphQL + PostgreSQL + Kafka +
+# Elasticsearch + Postgres monitoring (Prometheus/Grafana/pgHero)
+#
+# Data for all storage services is located on the host at ${DB_DATA_PATH} —
+# this ensures data persists across `docker compose down` and container rebuilds.
+#
+# All credentials (Postgres, Grafana) and secrets (JWT) are loaded from the environment.
+#
+# Start:     docker compose up -d
+# Logs:      docker compose logs -f <service>
+# Stop:      docker compose down          (host data remains intact)
+#            docker compose down -v
+# ==============================================================================
+
+services:
+
+
+  # FastAPI + Strawberry — code is mounted via bind-mount for live-reload:
+
+  api:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: recipegraph_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+      ELASTICSEARCH_URL: "http://elasticsearch:9200"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      JWT_SECRET: "${JWT_SECRET}"
+    volumes:
+      - ./app:/app
+    ports:
+      - "8000:8000"
+    networks:
+      - recipes_net
+
+  # PostgreSQL
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: recipes_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB}"
+    ports:
+      - "5432:5432"
+    volumes:
+      - ${DB_DATA_PATH}/postgres:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.track=all"
+      - "-c"
+      - "max_connections=100"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - recipes_net
+
+  # Kafka in KRaft mode (without ZooKeeper)
+
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: recipes_kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+      - "9101:9101"  # JMX for Kafka metrics and monitoring
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+    volumes:
+      - ${DB_DATA_PATH}/kafka:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      - recipes_net
+
+  # Web UI for Kafka — easily view topics, partitions, and messages
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: recipes_kafka_ui
+    restart: unless-stopped
+    depends_on:
+      - kafka
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    networks:
+      - recipes_net
+
+  # Elasticsearch
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.14.3
+    container_name: recipes_elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - ${DB_DATA_PATH}/elasticsearch:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      - recipes_net
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.14.3
+    container_name: recipes_kibana
+    restart: unless-stopped
+    depends_on:
+      - elasticsearch
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    networks:
+      - recipes_net
+
+  # PostgreSQL monitoring: postgres_exporter -> Prometheus -> Grafana
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: recipes_postgres_exporter
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
+    ports:
+      - "9187:9187"
+    networks:
+      - recipes_net
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: recipes_prometheus
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ${DB_DATA_PATH}/prometheus:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - postgres_exporter
+    networks:
+      - recipes_net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: recipes_grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD}"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ${DB_DATA_PATH}/grafana:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - recipes_net
+
+  # pgHero
+  pghero:
+    image: ankane/pghero:latest
+    container_name: recipes_pghero
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+    ports:
+      - "8085:8080"
+    networks:
+      - recipes_net
+
+networks:
+  recipes_net:
+    driver: bridge

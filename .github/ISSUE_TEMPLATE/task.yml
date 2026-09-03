@@ -1,0 +1,36 @@
+name: Task
+description: A development task tied to a roadmap item
+title: "[vX.Y.Z] "
+labels: ["task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep the title prefixed with the roadmap version this task corresponds to,
+        e.g. `[v0.1.2] Seed script for reference tables`.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What needs to be done, and why.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: Concrete, verifiable outcomes — checked off as they're completed.
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+
+  - type: input
+    id: related
+    attributes:
+      label: Related
+    validations:
+      required: false
