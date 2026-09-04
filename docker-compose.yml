@@ -58,7 +58,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ${DB_DATA_PATH}/postgres:/var/lib/postgresql/data
+      - ${DB_DATA_PATH}/recipegraph/postgres:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     command:
       - "postgres"
@@ -100,7 +100,7 @@ services:
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
     volumes:
-      - ${DB_DATA_PATH}/kafka:/var/lib/kafka/data
+      - ${DB_DATA_PATH}/recipegraph/kafka:/var/lib/kafka/data
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"]
       interval: 10s
@@ -137,7 +137,7 @@ services:
     ports:
       - "9200:9200"
     volumes:
-      - ${DB_DATA_PATH}/elasticsearch:/usr/share/elasticsearch/data
+      - ${DB_DATA_PATH}/recipegraph/elasticsearch:/usr/share/elasticsearch/data
     healthcheck:
       test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
       interval: 10s
@@ -181,7 +181,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ${DB_DATA_PATH}/prometheus:/prometheus
+      - ${DB_DATA_PATH}/recipegraph/prometheus:/prometheus
     ports:
       - "9090:9090"
     depends_on:
@@ -202,7 +202,7 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD}"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
     volumes:
-      - ${DB_DATA_PATH}/grafana:/var/lib/grafana
+      - ${DB_DATA_PATH}/recipegraph/grafana:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
     networks:
       - recipes_net
