@@ -1,5 +1,3 @@
-version: "3.9"
-
 # ==============================================================================
 # RecipeGraph project stack: FastAPI + Strawberry GraphQL + PostgreSQL + Kafka +
 # Elasticsearch + Postgres monitoring (Prometheus/Grafana/pgHero)
@@ -22,7 +20,7 @@ services:
 
   api:
     build:
-      context: ./app
+      context: .
       dockerfile: Dockerfile
     container_name: recipegraph_api
     restart: unless-stopped
@@ -34,7 +32,11 @@ services:
       kafka:
         condition: service_healthy
     environment:
-      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: "${POSTGRES_DB}"
       ELASTICSEARCH_URL: "http://elasticsearch:9200"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
       JWT_SECRET: "${JWT_SECRET}"
@@ -208,19 +210,19 @@ services:
       - recipes_net
 
   # pgHero
-  pghero:
-    image: ankane/pghero:latest
-    container_name: recipes_pghero
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
-    ports:
-      - "8085:8080"
-    networks:
-      - recipes_net
+#  pghero:
+#    image: ankane/pghero:v3.7.0
+#    container_name: recipes_pghero
+#    restart: unless-stopped
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+#    environment:
+#      DATABASE_URL: "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+#    ports:
+#      - "8085:8080"
+#    networks:
+#      - recipes_net
 
 networks:
   recipes_net:

@@ -6,7 +6,6 @@ or keep in sync.
 """
 
 import asyncio
-import os
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -14,19 +13,13 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
-from app.models import Base
+from db import DATABASE_URL
+from models import Base
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
-
-# DATABASE_URL is the single source of truth for the connection string — it's
-# the same env var docker-compose.yml passes to the api service, so there is
-# nothing to keep in sync between "app config" and "migration config".
-database_url = os.environ.get("DATABASE_URL")
-if database_url:
-    config.set_main_option("sqlalchemy.url", database_url)
 
 # target_metadata is what `alembic revision --autogenerate` diffs the live
 # database against for *future* migrations.
@@ -35,9 +28,8 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     """Generate SQL without connecting to a database (`alembic upgrade --sql`)."""
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=DATABASE_URL,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -53,9 +45,9 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_migrations_online() -> None:
-    """Connect to the real database and apply migrations."""
+    """Connect to the real database and apply migrations (the normal case)."""
     connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        {"sqlalchemy.url": DATABASE_URL},
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
