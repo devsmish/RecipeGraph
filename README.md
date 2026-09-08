@@ -43,6 +43,39 @@ cp .env.example .env
 docker compose up -d
 ```
 
+## Common commands
+
+### Docker Compose
+
+```bash
+docker compose up -d                    # start the full stack in the background
+docker compose up -d --force-recreate api   # recreate just the api container (e.g. after an .env change)
+docker compose build --no-cache api     # rebuild the api image from scratch (e.g. after Dockerfile/requirements.txt changes)
+docker compose ps                       # status of every service
+docker compose logs -f api              # follow logs for one service
+docker compose down                     # stop and remove containers (data on disk is untouched — bind-mounted, not a Docker volume)
+```
+
+### Migrations (Alembic)
+
+Full explanation of how this works and how the existing migrations came:
+
+```bash
+docker compose exec api alembic upgrade head                          # apply all pending migrations
+docker compose exec api alembic revision --autogenerate -m "message"  # generate a new migration from models.py changes
+docker compose exec api alembic downgrade -1                          # roll back the last migration
+docker compose exec api alembic current                               # show the currently applied revision
+```
+
+### Tests
+
+Tests run against a separate, disposable database (`recipes_test_db`, created automatically —
+see `postgres/init.sql`), never against dev data:
+
+```bash
+docker compose exec -e POSTGRES_DB=recipes_test_db api pytest -v
+```
+
 ## Contributing / branching model
 
 `main` and `develop` are protected — all work happens on `feature/<issue-number>-<slug>` branches
@@ -50,8 +83,10 @@ merged into `develop` via PR, releases go through `release/vX.Y.Z`.
 
 ## Project status
 
-Early stage — infrastructure and design are in place, application code is in progress.
-Full scope, data model, and a step-by-step build app.
+Early stage. Data models and the initial database schema are in place
+(migrations included). GraphQL API surface (queries and mutations beyond the
+health check) is still to come. Full scope, data model, and a step-by-step
+build roadmap.
 
 ## License
 
