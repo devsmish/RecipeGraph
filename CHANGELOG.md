@@ -1,5 +1,14 @@
 # Changelog
 
+# Changelog
+
+## [0.1.2] - 2026-09-09
+
+### Added
+- Reference data seeding script (`app/seed.py`) with 42 recipe categories, 15 ingredient categories, and 260+ base ingredients.
+- Idempotent insert mechanism using PostgreSQL `INSERT ... ON CONFLICT DO NOTHING` on unique constraints.
+- Foreign key resolution helper (`get_or_create_ingredient_category`) for safe category assignment.
+
 ## [0.1.1] - 2026-09-08
 
 ### Added
