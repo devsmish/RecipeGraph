@@ -83,10 +83,9 @@ merged into `develop` via PR, releases go through `release/vX.Y.Z`.
 
 ## Project status
 
-Early stage. Data models and the initial database schema are in place
-(migrations included). GraphQL API surface (queries and mutations beyond the
-health check) is still to come. Full scope, data model, and a step-by-step
-build roadmap.
+Early stage. Data models, database schema, and reference data seeding (recipe categories, ingredient categories, master 
+ingredient list) are fully in place. GraphQL API surface (queries and mutations beyond the health check) is still to 
+come. Full scope, data model, and a step-by-step build roadmap.
 
 ## License
 
