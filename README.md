@@ -22,6 +22,9 @@ exercise the parts of a real search system that CRUD tutorials skip:
   *not* to auto-retry writes without an idempotency key
 - **Observability from day one** — `pg_stat_statements`, Prometheus + Grafana, and pgHero are
   part of the stack, not an afterthought bolted on later
+- **Authentication & Security** — Argon2id password hashing, stateless short-lived JWT access tokens, 
+  and opaque hashed refresh tokens for secure session revocation without security leaks (user 
+  enumeration prevention).
 
 ## Tech stack
 
@@ -83,9 +86,8 @@ merged into `develop` via PR, releases go through `release/vX.Y.Z`.
 
 ## Project status
 
-Early stage. Data models, database schema, and reference data seeding (recipe categories, ingredient categories, master 
-ingredient list) are fully in place. GraphQL API surface (queries and mutations beyond the health check) is still to 
-come. Full scope, data model, and a step-by-step build roadmap.
+Active development. Database schema, reference data seeding, password hashing (argon2id), JWT/opaque 
+refresh token authentication, and core GraphQL auth mutations (`register`, `login`) are fully implemented.
 
 ## License
 
