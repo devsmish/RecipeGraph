@@ -1,6 +1,18 @@
 # Changelog
 
-# Changelog
+## [0.1.3] - 2026-09-11
+
+### Added
+- **Authentication System (`app/auth.py`):**
+  - Password hashing via `argon2id` using `passlib`.
+  - Short-lived JWT access tokens (15 min lifespan) with stateless verification.
+  - Opaque random refresh tokens (`secrets.token_urlsafe`), persisted in `refresh_tokens` table via SHA-256 hashes to support revocation/logout.
+- **GraphQL Schema (`app/schema.py`):**
+  - Moved GraphQL schema into a dedicated module `app/schema.py`.
+  - Added `register` and `login` GraphQL mutations.
+  - Added `AuthPayload` and `User` GraphQL types.
+  - Unified error response for `login` mutation to prevent user enumeration attacks.
+  - Unique-constraint violation handling for duplicate email/username during registration with clean GraphQL error responses.
 
 ## [0.1.2] - 2026-09-09
 

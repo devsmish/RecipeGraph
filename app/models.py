@@ -10,6 +10,7 @@ from decimal import Decimal
 from sqlalchemy import (
     CheckConstraint,
     Column,
+    DateTime,
     ForeignKey,
     Numeric,
     String,
@@ -23,8 +24,15 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
-    """Shared declarative base — every model below inherits from this."""
+    """Shared declarative base — every model below inherits from this.
 
+    type_annotation_map makes every `Mapped[datetime.datetime]` column below store as
+    TIMESTAMPTZ (timezone-aware) instead of SQLAlchemy's default TIMESTAMP (naive).
+    """
+
+    type_annotation_map = {
+        datetime.datetime: DateTime(timezone=True),
+    }
 
 # Enums
 # Stored as native PostgreSQL ENUM types (not plain strings) so the database
@@ -179,6 +187,7 @@ class Recipe(Base):
     updated_at: Mapped[datetime.datetime] = mapped_column(
         server_default=func.now(), onupdate=func.now()
     )
+
     author: Mapped["User"] = relationship(back_populates="recipes")
     category: Mapped["RecipeCategory"] = relationship(back_populates="recipes")
     ingredients: Mapped[list["RecipeIngredient"]] = relationship(
