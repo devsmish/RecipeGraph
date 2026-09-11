@@ -1,3 +1,5 @@
+"""FastAPI application entry point — wires up the GraphQL router."""
+
 import os
 
 import strawberry
@@ -5,6 +7,8 @@ from fastapi import FastAPI
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 from strawberry.fastapi import GraphQLRouter
+
+from schema import schema
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 engine = create_async_engine(DATABASE_URL, echo=False)
@@ -25,7 +29,6 @@ class Query:
         return "postgres: ok"
 
 
-schema = strawberry.Schema(query=Query)
 graphql_app = GraphQLRouter(schema)
 
 app = FastAPI(title="RecipeGraph API")
