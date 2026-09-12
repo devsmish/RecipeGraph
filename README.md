@@ -86,8 +86,9 @@ merged into `develop` via PR, releases go through `release/vX.Y.Z`.
 
 ## Project status
 
-Active development. Database schema, reference data seeding, password hashing (argon2id), JWT/opaque 
-refresh token authentication, and core GraphQL auth mutations (`register`, `login`) are fully implemented.
+Active development. Database schema, reference data seeding, password hashing (argon2id), JWT 
+access tokens, opaque refresh token storage, and full authentication & session management GraphQL 
+mutations (register, login, refreshToken, logout) are fully implemented.
 
 ## License
 
