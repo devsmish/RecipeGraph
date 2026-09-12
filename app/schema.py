@@ -1,11 +1,20 @@
 """GraphQL schema: types, queries, and mutations."""
 
+from datetime import datetime, timezone
+
 import strawberry
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
-from auth import create_access_token, create_refresh_token, hash_password, verify_password
+from auth import (
+    create_access_token,
+    create_refresh_token,
+    hash_password,
+    hash_refresh_token,
+    verify_password,
+)
 from db import async_session_maker, engine
+from models import RefreshToken as RefreshTokenModel
 from models import User as UserModel
 
 
@@ -17,6 +26,11 @@ class UsernameOrEmailTakenError(Exception):
 class InvalidCredentialsError(Exception):
     def __init__(self) -> None:
         super().__init__("Invalid email or password")
+
+
+class InvalidRefreshTokenError(Exception):
+    def __init__(self) -> None:
+        super().__init__("Invalid or expired refresh token")
 
 
 @strawberry.type(description="A registered user of RecipeGraph.")
@@ -81,7 +95,7 @@ class Mutation:
 
             try:
                 # flush (not commit) sends the INSERT and assigns user.id, without
-                # ending the transaction — lets catch the unique-constraint
+                # ending the transaction — lets us catch the unique-constraint
                 # violation and turn it into a clean GraphQL error instead of a raw
                 # database exception.
                 await session.flush()
@@ -117,6 +131,54 @@ class Mutation:
             refresh_token=refresh_token,
             user=User.from_model(user),
         )
+
+    @strawberry.mutation(description="Exchange a valid refresh token for a new access token.")
+    async def refresh_token(self, refresh_token: str) -> AuthPayload:
+        async with async_session_maker() as session:
+            token_hash = hash_refresh_token(refresh_token)
+            result = await session.execute(
+                select(RefreshTokenModel).where(RefreshTokenModel.token_hash == token_hash)
+            )
+            token_row = result.scalar_one_or_none()
+
+            now = datetime.now(timezone.utc)
+            is_invalid = (
+                    token_row is None
+                    or token_row.revoked_at is not None
+                    or token_row.expires_at < now
+            )
+            if is_invalid:
+                raise InvalidRefreshTokenError()
+
+            user_result = await session.execute(
+                select(UserModel).where(UserModel.id == token_row.user_id)
+            )
+            user = user_result.scalar_one()
+            access_token = create_access_token(user.id)
+
+        return AuthPayload(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            user=User.from_model(user),
+        )
+
+    @strawberry.mutation(description="Revoke a refresh token, ending that session.")
+    async def logout(self, refresh_token: str) -> bool:
+        async with async_session_maker() as session:
+            token_hash = hash_refresh_token(refresh_token)
+            result = await session.execute(
+                select(RefreshTokenModel).where(RefreshTokenModel.token_hash == token_hash)
+            )
+            token_row = result.scalar_one_or_none()
+
+            if token_row is None:
+                # Unknown token — logout is idempotent.
+                return False
+
+            token_row.revoked_at = datetime.now(timezone.utc)
+            await session.commit()
+
+        return True
 
 
 schema = strawberry.Schema(query=Query, mutation=Mutation)
