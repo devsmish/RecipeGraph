@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.4] - 2026-09-12
+
+### Added
+- **GraphQL Session Management Mutations (`app/schema.py`):**
+  - Added `refreshToken` mutation: validates refresh tokens by SHA-256 hash (checking existence, expiration, and revocation status) and returns a new access token.
+  - Added `logout` mutation: revokes refresh tokens by setting `revoked_at`. Designed to be idempotent (re-logging-out an already-revoked token returns `true`, non-existent token returns `false`).
+  - Added unified generic error messaging (`"Invalid or expired refresh token"`) across refresh failures to prevent sensitive status leaks, consistent with authentication security practices in #6.
+
+### Refactored
+- Extracted `hash_refresh_token` helper function from `create_refresh_token` in `app/auth.py` to ensure consistent SHA-256 hashing logic across token creation, lookup, and revocation.
+
 ## [0.1.3] - 2026-09-11
 
 ### Added
