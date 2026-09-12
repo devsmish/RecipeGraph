@@ -46,6 +46,10 @@ def create_access_token(user_id: uuid.UUID) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
+def hash_refresh_token(raw_token: str) -> str:
+    return hashlib.sha256(raw_token.encode()).hexdigest()
+
+
 async def create_refresh_token(session: AsyncSession, user_id: uuid.UUID) -> str:
     """Generate a new refresh token, persist its hash, and return the raw token.
 
