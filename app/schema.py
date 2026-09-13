@@ -100,7 +100,7 @@ class Mutation:
 
             try:
                 # flush (not commit) sends the INSERT and assigns user.id, without
-                # ending the transaction — lets us catch the unique-constraint
+                # ending the transaction — lets catch the unique-constraint
                 # violation and turn it into a clean GraphQL error instead of a raw
                 # database exception.
                 await session.flush()
