@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.5] - 2026-09-13
+
+### Added
+- **Per-Request Auth Context (`context.py`):**
+  - Added Strawberry `get_context` getter to extract `Authorization: Bearer <token>`, verify JWT, and populate user context via `info.context["user"]`.
+  - Graceful degradation for unauthenticated or malformed/expired token requests (`user = None`) without failing entire public GraphQL operations.
+  - Reusable `require_user(info)` helper raising `NotAuthenticatedError` for protected GraphQL resolvers.
+  - Added `currentUser` GraphQL query returning authenticated user profile or `null`.
+
 ## [0.1.4] - 2026-09-12
 
 ### Added
