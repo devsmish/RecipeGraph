@@ -80,6 +80,11 @@ class Query:
             await conn.execute(text("SELECT 1"))
         return "postgres: ok"
 
+    @strawberry.field(description="The currently authenticated user, or null if not logged in.")
+    def current_user(self, info: strawberry.Info) -> User | None:
+        user_model = info.context["user"]
+        return User.from_model(user_model) if user_model else None
+
 
 @strawberry.type
 class Mutation:
