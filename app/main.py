@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from strawberry.fastapi import GraphQLRouter
 
 from schema import schema
+from context import get_context
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 engine = create_async_engine(DATABASE_URL, echo=False)
@@ -29,7 +30,7 @@ class Query:
         return "postgres: ok"
 
 
-graphql_app = GraphQLRouter(schema)
+graphql_app = GraphQLRouter(schema, context_getter=get_context)
 
 app = FastAPI(title="RecipeGraph API")
 app.include_router(graphql_app, prefix="/graphql")

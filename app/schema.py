@@ -80,6 +80,11 @@ class Query:
             await conn.execute(text("SELECT 1"))
         return "postgres: ok"
 
+    @strawberry.field(description="The currently authenticated user, or null if not logged in.")
+    def current_user(self, info: strawberry.Info) -> User | None:
+        user_model = info.context["user"]
+        return User.from_model(user_model) if user_model else None
+
 
 @strawberry.type
 class Mutation:
@@ -95,7 +100,7 @@ class Mutation:
 
             try:
                 # flush (not commit) sends the INSERT and assigns user.id, without
-                # ending the transaction — lets us catch the unique-constraint
+                # ending the transaction — lets catch the unique-constraint
                 # violation and turn it into a clean GraphQL error instead of a raw
                 # database exception.
                 await session.flush()
