@@ -37,6 +37,7 @@ exercise the parts of a real search system that CRUD tutorials skip:
 | Event bus    | Kafka (KRaft mode) + aiokafka                                 |
 | Auth         | Argon2id/bcrypt password hashing, JWT access + refresh tokens |
 | Monitoring   | Prometheus, Grafana, postgres_exporter, pgHero                |
+| Logging      | Sentry, structlog                                             |
 | Infra        | Docker Compose                                                |
 
 ## Getting started
@@ -86,9 +87,10 @@ merged into `develop` via PR, releases go through `release/vX.Y.Z`.
 
 ## Project status
 
-Active development. Database schema, reference data seeding, password hashing (argon2id), JWT access 
-tokens, opaque refresh token storage, authentication & session management mutations (register, login, 
-refreshToken, logout), per-request GraphQL auth context, and currentUser query are fully implemented.
+Active development. Database schema, reference data seeding, auth system (Argon2id, JWT, opaque 
+refresh tokens), session GraphQL mutations (`register`, `login`, `refreshToken`, `logout`), auth context, 
+`currentUser` query, structured JSON logging (`structlog`), Sentry integration, and Strawberry 
+exception-masking extensions are fully implemented.
 
 ## License
 
