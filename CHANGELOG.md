@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.6] - 2026-09-14
+
+### Added
+- **Structured JSON Logging (`logging_config.py`):**
+  - Integrated `structlog` configured for JSON output across the application.
+- **GraphQL Exception Handling Extension (`app/schema.py` / `ErrorLoggingExtension`):**
+  - Added Strawberry `ErrorLoggingExtension` to log every resolver exception with full tracebacks.
+  - Implemented exception masking: safe business exceptions (`InvalidCredentialsError`, `NotAuthenticatedError`, etc.) pass through to the client unchanged, while unexpected errors are masked as a generic `"Internal server error"`.
+- **Exception Tracking with Sentry (`sentry_config.py`):**
+  - Added Sentry integration reading from `SENTRY_DSN` (silently disabled when unset).
+  - Added `SENTRY_DSN` to `.env.example` and `docker-compose.yml`.
+
 ## [0.1.5] - 2026-09-13
 
 ### Added

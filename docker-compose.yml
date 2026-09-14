@@ -40,6 +40,7 @@ services:
       ELASTICSEARCH_URL: "http://elasticsearch:9200"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
       JWT_SECRET: "${JWT_SECRET}"
+      SENTRY_DSN: "${SENTRY_DSN:-}"
     volumes:
       - ./app:/app
     ports:

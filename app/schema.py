@@ -14,6 +14,7 @@ from auth import (
     verify_password,
 )
 from db import async_session_maker, engine
+from app.error_handling import ErrorLoggingExtension
 from models import RefreshToken as RefreshTokenModel
 from models import User as UserModel
 
@@ -186,4 +187,4 @@ class Mutation:
         return True
 
 
-schema = strawberry.Schema(query=Query, mutation=Mutation)
+schema = strawberry.Schema(query=Query, mutation=Mutation, extensions=[ErrorLoggingExtension])
