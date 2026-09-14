@@ -8,8 +8,10 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 from strawberry.fastapi import GraphQLRouter
 
-from schema import schema
 from context import get_context
+from logging_config import configure_logging
+from schema import schema
+from sentry_config import configure_sentry
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 engine = create_async_engine(DATABASE_URL, echo=False)
@@ -29,6 +31,9 @@ class Query:
             await conn.execute(text("SELECT 1"))
         return "postgres: ok"
 
+
+configure_logging()
+configure_sentry()
 
 graphql_app = GraphQLRouter(schema, context_getter=get_context)
 
