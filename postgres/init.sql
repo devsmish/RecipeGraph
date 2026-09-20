@@ -8,3 +8,11 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- For UUID primary keys
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- A separate database for running tests — pytest must never touch recipes_db
+-- directly (tests perform TRUNCATE between runs).
+CREATE DATABASE recipes_test_db;
+\c recipes_test_db
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
