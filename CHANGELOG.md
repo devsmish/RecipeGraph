@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.7] - 2026-09-20
+
+### Added
+- **Automated Test Suite (`tests/`):**
+  - Added unit and regression tests for DSN URL-encoding logic in `db.py` (handling passwords with special characters like `@`, `:`, `/`, `#`).
+  - Added schema constraint validation tests: unique constraints (`User.username`, `User.email`, `RecipeCategory.name`, `IngredientCategory.name`, `IngredientCatalog.name`, `Tag.name`), composite rating constraint (one rating per user per recipe), 1:1 constraint for rating comments, and check constraint for rating values (`1-5`).
+  - Added ENUM persistence verification confirming PostgreSQL stores lowercase values matching `values_callable` mapping.
+  - Test suite configured to execute against disposable database (`recipes_test_db`) with automatic table truncation (`TRUNCATE`) between test runs.
+  - Configured `pythonpath = app` in `pytest.ini` for clean module resolution across application imports.
+
+### Refactored
+- **Project Structure Reorganization:**
+  - Restructured project layout to follow Python best practices: moved `tests/` from `app/` to the repository root.
+
 ## [0.1.6] - 2026-09-14
 
 ### Added

@@ -89,8 +89,8 @@ merged into `develop` via PR, releases go through `release/vX.Y.Z`.
 
 Active development. Database schema, reference data seeding, auth system (Argon2id, JWT, opaque 
 refresh tokens), session GraphQL mutations (`register`, `login`, `refreshToken`, `logout`), auth context, 
-`currentUser` query, structured JSON logging (`structlog`), Sentry integration, and Strawberry 
-exception-masking extensions are fully implemented.
+`currentUser` query, structured JSON logging (`structlog`), Sentry integration, Strawberry 
+exception-masking extensions, and comprehensive test coverage for data models/schema constraints are fully implemented.
 
 ## License
 
