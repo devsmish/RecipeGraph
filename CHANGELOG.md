@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.8] - 2026-09-21
+
+### Added
+- **Automated Test Suite for Foundation & Auth (`tests/`):**
+  - Added unit tests (`tests/test_auth_unit.py`) verifying Argon2id password hashing and verification, short-lived JWT access token generation & payload decoding, and SHA-256 refresh token hashing.
+  - Added integration tests (`tests/test_auth_graphql.py`) for GraphQL HTTP endpoints (`register`, `login`, `refreshToken`, `logout`, `currentUser`) testing both happy paths and error paths (duplicate credentials, invalid credentials, expired/revoked refresh tokens).
+  - Added idempotency tests (`tests/test_seed.py`) confirming `seed.py` can be re-run safely (`INSERT ... ON CONFLICT DO NOTHING`) without creating duplicate records.
+
+---
+
 ## [0.1.7] - 2026-09-20
 
 ### Added
