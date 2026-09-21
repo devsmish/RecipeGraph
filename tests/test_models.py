@@ -12,7 +12,8 @@ from sqlalchemy.exc import IntegrityError
 from db import async_session_maker
 from models import (
     Difficulty,
-    Rating, Recipe,
+    Rating,
+    Recipe,
     RecipeCategory,
     User,
     IngredientCategory,
