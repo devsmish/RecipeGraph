@@ -13,10 +13,21 @@ from auth import (
     hash_refresh_token,
     verify_password,
 )
+from context import require_user
 from db import async_session_maker, engine
-from app.error_handling import ErrorLoggingExtension
 from models import RefreshToken as RefreshTokenModel
 from models import User as UserModel
+from recipes import (
+    Ingredient,
+    IngredientCategory,
+    Recipe,
+    RecipeCategory,
+    resolve_ingredient_categories,
+    resolve_ingredients,
+    resolve_my_recipes,
+    resolve_recipe,
+    resolve_recipe_categories,
+)
 
 
 class UsernameOrEmailTakenError(Exception):
@@ -85,6 +96,27 @@ class Query:
     def current_user(self, info: strawberry.Info) -> User | None:
         user_model = info.context["user"]
         return User.from_model(user_model) if user_model else None
+
+    @strawberry.field(description="A single recipe by id.")
+    async def recipe(self, id: strawberry.ID) -> Recipe:
+        return await resolve_recipe(id)
+
+    @strawberry.field(description="Recipes belonging to the currently authenticated user.")
+    async def my_recipes(self, info: strawberry.Info) -> list[Recipe]:
+        user = require_user(info)
+        return await resolve_my_recipes(user.id)
+
+    @strawberry.field(description="All recipe categories (e.g. Salads, Soups) — one per recipe.")
+    async def recipe_categories(self) -> list[RecipeCategory]:
+        return await resolve_recipe_categories()
+
+    @strawberry.field(description="All ingredient categories (e.g. Meat, Vegetables).")
+    async def ingredient_categories(self) -> list[IngredientCategory]:
+        return await resolve_ingredient_categories()
+
+    @strawberry.field(description="Ingredient master list, optionally filtered by name.")
+    async def ingredients(self, search: str | None = None) -> list[Ingredient]:
+        return await resolve_ingredients(search)
 
 
 @strawberry.type
@@ -187,4 +219,4 @@ class Mutation:
         return True
 
 
-schema = strawberry.Schema(query=Query, mutation=Mutation, extensions=[ErrorLoggingExtension])
+schema = strawberry.Schema(query=Query, mutation=Mutation)
