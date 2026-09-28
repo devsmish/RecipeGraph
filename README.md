@@ -90,7 +90,8 @@ merged into `develop` via PR, releases go through `release/vX.Y.Z`.
 Active development. Core database schema, reference data seeding, complete auth system (Argon2id, JWT, 
 opaque refresh tokens), session GraphQL mutations (`register`, `login`, `refreshToken`, `logout`), auth 
 context, `currentUser` query, structured JSON logging (`structlog`), Sentry error tracking, Strawberry 
-exception masking, and **complete test coverage for Foundation & Auth flows** are fully implemented.
+exception masking, test coverage, **and GraphQL read queries for recipes, user recipes (`myRecipes`), and 
+dictionary metadata (`recipeCategories`, `ingredientCategories`, `ingredients`)** are fully implemented.
 
 ## License
 

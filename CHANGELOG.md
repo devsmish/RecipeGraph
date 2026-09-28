@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.0] - 2026-09-28
+
+### Added
+- **Recipe & Dictionary GraphQL Read Schema (`recipes.py` / `schema.py`):**
+  - Added new dedicated domain module `recipes.py` containing Strawberry GraphQL types: `Recipe`, `RecipeCategory`, `IngredientCategory`, `Ingredient`, `RecipeIngredient`, `Tag`, `Rating`, `RatingComment`, `RecipeAuthor`, alongside `Difficulty` and `MeasurementUnit` enums.
+  - Added read queries to GraphQL `Query`:
+    - `recipe(id: ID!)`: Fetch a single recipe by unique identifier (raises `RecipeNotFoundError` if missing).
+    - `myRecipes`: Fetch all recipes created by the currently authenticated user (protected via `require_user`).
+    - `recipeCategories`: Dictionary query returning all available recipe categories.
+    - `ingredientCategories`: Dictionary query returning all ingredient categories.
+    - `ingredients(search: String)`: Master list ingredient lookup with optional case-insensitive substring search (`ILIKE`).
+- **Naive Resolvers for Educational Demonstration:**
+  - Nested fields on `Recipe` (`author`, `category`, `ingredients`, `tags`, `ratings`, `avg_rating`, `ratings_count`) and `Ingredient` (`category`) implemented as independent DB queries to explicitly illustrate the GraphQL N+1 query problem before introducing DataLoader optimization in upcoming releases.
+
+---
+
 ## [0.1.8] - 2026-09-21
 
 ### Added
