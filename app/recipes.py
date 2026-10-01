@@ -10,7 +10,7 @@ from decimal import Decimal
 from enum import Enum
 
 import strawberry
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
 
 from db import async_session_maker
@@ -24,6 +24,7 @@ from models import RecipeCategory as RecipeCategoryModel
 from models import RecipeIngredient as RecipeIngredientModel
 from models import Tag as TagModel
 from models import User as UserModel
+from models import recipe_tags
 
 
 @strawberry.enum(description="How difficult a recipe is to make.")
@@ -305,3 +306,134 @@ async def resolve_ingredients(search: str | None) -> list[Ingredient]:
             query = query.where(IngredientCatalogModel.name.ilike(f"%{search}%"))
         result = await session.execute(query)
         return [Ingredient.from_model(row) for row in result.scalars()]
+
+
+# Mutations
+
+
+class NotRecipeOwnerError(Exception):
+    def __init__(self) -> None:
+        super().__init__("You can only modify your own recipes")
+
+
+@strawberry.input(description="One ingredient line: which ingredient, how much, in what unit.")
+class RecipeIngredientInput:
+    ingredient_id: strawberry.ID
+    amount: float
+    unit: MeasurementUnit
+
+
+@strawberry.input(description="Fields required to create a new recipe.")
+class CreateRecipeInput:
+    category_id: strawberry.ID
+    title: str
+    cooking_time_minutes: int
+    difficulty: Difficulty
+    servings: int
+    ingredients: list[RecipeIngredientInput]
+    description: str | None = None
+    tag_ids: list[strawberry.ID] = strawberry.field(default_factory=list)
+
+
+@strawberry.input(
+    description="Fields to update on an existing recipe — omit a field to leave it "
+    "unchanged. Providing `ingredients` or `tagIds` replaces the full list, not a merge."
+)
+class UpdateRecipeInput:
+    category_id: strawberry.ID | None = strawberry.UNSET
+    title: str | None = strawberry.UNSET
+    description: str | None = strawberry.UNSET
+    cooking_time_minutes: int | None = strawberry.UNSET
+    difficulty: Difficulty | None = strawberry.UNSET
+    servings: int | None = strawberry.UNSET
+    ingredients: list[RecipeIngredientInput] | None = strawberry.UNSET
+    tag_ids: list[strawberry.ID] | None = strawberry.UNSET
+
+
+async def _replace_ingredients(session, recipe_id: uuid.UUID, lines: list[RecipeIngredientInput]) -> None:
+    await session.execute(delete(RecipeIngredientModel).where(RecipeIngredientModel.recipe_id == recipe_id))
+    for position, line in enumerate(lines):
+        session.add(
+            RecipeIngredientModel(
+                recipe_id=recipe_id,
+                ingredient_id=uuid.UUID(line.ingredient_id),
+                amount=Decimal(str(line.amount)),
+                unit=MeasurementUnitModel(line.unit.value),
+                position=position,
+            )
+        )
+
+
+async def _replace_tags(session, recipe_id: uuid.UUID, tag_ids: list[strawberry.ID]) -> None:
+    await session.execute(recipe_tags.delete().where(recipe_tags.c.recipe_id == recipe_id))
+    for tag_id in tag_ids:
+        await session.execute(recipe_tags.insert().values(recipe_id=recipe_id, tag_id=uuid.UUID(tag_id)))
+
+
+async def resolve_create_recipe(user_id: uuid.UUID, input: CreateRecipeInput) -> Recipe:
+    async with async_session_maker() as session:
+        recipe = RecipeModel(
+            author_id=user_id,
+            category_id=uuid.UUID(input.category_id),
+            title=input.title,
+            description=input.description,
+            cooking_time_minutes=input.cooking_time_minutes,
+            difficulty=DifficultyModel(input.difficulty.value),
+            servings=input.servings,
+        )
+        session.add(recipe)
+        await session.flush()  # assigns recipe.id, needed by the two helpers below
+
+        await _replace_ingredients(session, recipe.id, input.ingredients)
+        await _replace_tags(session, recipe.id, list(input.tag_ids))
+
+        await session.commit()
+        return Recipe.from_model(recipe)
+
+
+async def resolve_update_recipe(user_id: uuid.UUID, recipe_id: strawberry.ID, input: UpdateRecipeInput) -> Recipe:
+    async with async_session_maker() as session:
+        result = await session.execute(select(RecipeModel).where(RecipeModel.id == uuid.UUID(recipe_id)))
+        recipe = result.scalar_one_or_none()
+        if recipe is None:
+            raise RecipeNotFoundError()
+        if recipe.author_id != user_id:
+            raise NotRecipeOwnerError()
+
+        # strawberry.UNSET distinguishes "field not provided in the mutation" from
+        # "field explicitly set to null" — the latter matters for `description`,
+        # which is nullable and should be clearable.
+        if input.category_id is not strawberry.UNSET:
+            recipe.category_id = uuid.UUID(input.category_id)
+        if input.title is not strawberry.UNSET:
+            recipe.title = input.title
+        if input.description is not strawberry.UNSET:
+            recipe.description = input.description
+        if input.cooking_time_minutes is not strawberry.UNSET:
+            recipe.cooking_time_minutes = input.cooking_time_minutes
+        if input.difficulty is not strawberry.UNSET:
+            recipe.difficulty = DifficultyModel(input.difficulty.value)
+        if input.servings is not strawberry.UNSET:
+            recipe.servings = input.servings
+        if input.ingredients is not strawberry.UNSET:
+            await _replace_ingredients(session, recipe.id, input.ingredients)
+        if input.tag_ids is not strawberry.UNSET:
+            await _replace_tags(session, recipe.id, list(input.tag_ids))
+
+        await session.commit()
+        return Recipe.from_model(recipe)
+
+
+async def resolve_delete_recipe(user_id: uuid.UUID, recipe_id: strawberry.ID) -> bool:
+    async with async_session_maker() as session:
+        result = await session.execute(select(RecipeModel).where(RecipeModel.id == uuid.UUID(recipe_id)))
+        recipe = result.scalar_one_or_none()
+
+        if recipe is None:
+            return False
+        if recipe.author_id != user_id:
+            raise NotRecipeOwnerError()
+
+        await session.delete(recipe)
+        await session.commit()
+        return True
