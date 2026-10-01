@@ -18,15 +18,20 @@ from db import async_session_maker, engine
 from models import RefreshToken as RefreshTokenModel
 from models import User as UserModel
 from recipes import (
+    CreateRecipeInput,
     Ingredient,
     IngredientCategory,
     Recipe,
     RecipeCategory,
+    UpdateRecipeInput,
+    resolve_create_recipe,
+    resolve_delete_recipe,
     resolve_ingredient_categories,
     resolve_ingredients,
     resolve_my_recipes,
     resolve_recipe,
     resolve_recipe_categories,
+    resolve_update_recipe,
 )
 
 
@@ -217,6 +222,28 @@ class Mutation:
             await session.commit()
 
         return True
+
+    @strawberry.mutation(description="Create a new recipe. Requires authentication.")
+    async def create_recipe(self, info: strawberry.Info, input: CreateRecipeInput) -> Recipe:
+        user = require_user(info)
+        return await resolve_create_recipe(user.id, input)
+
+    @strawberry.mutation(
+        description="Update an existing recipe. Only the recipe's author may do this."
+    )
+    async def update_recipe(
+            self, info: strawberry.Info, id: strawberry.ID, input: UpdateRecipeInput
+    ) -> Recipe:
+        user = require_user(info)
+        return await resolve_update_recipe(user.id, id, input)
+
+    @strawberry.mutation(
+        description="Delete a recipe. Only the recipe's author may do this. "
+                    "Idempotent for an already-deleted or unknown id."
+    )
+    async def delete_recipe(self, info: strawberry.Info, id: strawberry.ID) -> bool:
+        user = require_user(info)
+        return await resolve_delete_recipe(user.id, id)
 
 
 schema = strawberry.Schema(query=Query, mutation=Mutation)
