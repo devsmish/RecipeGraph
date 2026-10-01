@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.1] - 2026-10-01
+
+### Added
+- **Recipe Management GraphQL Mutations (`recipes.py` / `schema.py`):**
+  - Added `createRecipe`, `updateRecipe`, and `deleteRecipe` mutations wired into GraphQL `Mutation`.
+  - Added input structures: `CreateRecipeInput`, `UpdateRecipeInput`, and `RecipeIngredientInput`.
+  - Implemented `strawberry.UNSET` sentinel values for `UpdateRecipeInput` fields to distinguish omitted fields ("leave unchanged") from explicitly `null` values (such as clearing the optional `description` field).
+  - Added full list replacement strategy for nested `ingredients` and `tag_ids` during update operations (replacing all entries rather than merging).
+
+### Security & Validation
+- **Author Ownership Check:** Added `NotRecipeOwnerError` exception ensuring only the recipe's original author can perform update or delete operations.
+- **Idempotent Deletion:** Implemented `deleteRecipe` as an idempotent mutation returning `false` for non-existent or previously deleted IDs without throwing runtime errors.
+
+---
+
 ## [0.2.0] - 2026-09-28
 
 ### Added
