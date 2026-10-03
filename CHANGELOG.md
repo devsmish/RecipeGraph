@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.2] - 2026-10-03
+
+### Added
+- **Recipe Rating GraphQL Mutation (`rate_recipe` in `recipes.py` / `schema.py`):**
+  - Added `rateRecipe` GraphQL mutation with `RateRecipeInput` allowing authenticated users to rate recipes and leave optional comments.
+  - Implemented rating upsert logic based on `UNIQUE(recipe_id, user_id)` constraint — re-rating a recipe updates the existing row rather than inserting a duplicate record.
+  - Added optional `comment_text` handling backed by `UNIQUE(rating_id)` constraint — omitting the field leaves existing comments untouched, while providing text creates or replaces the comment independently of the rating value.
+
+### Validation & Error Handling
+- **Database Exception Translation:**
+  - Added `InvalidRatingValueError` translating PostgreSQL `CHECK` constraint violations for rating values (must be between 1 and 5) into clean GraphQL error messages.
+  - Handled missing targets via `RecipeNotFoundError` when trying to rate non-existent recipe IDs.
+
+---
+
 ## [0.2.1] - 2026-10-01
 
 ### Added
