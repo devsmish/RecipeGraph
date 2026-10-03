@@ -21,6 +21,8 @@ from recipes import (
     CreateRecipeInput,
     Ingredient,
     IngredientCategory,
+    RateRecipeInput,
+    Rating,
     Recipe,
     RecipeCategory,
     UpdateRecipeInput,
@@ -29,6 +31,7 @@ from recipes import (
     resolve_ingredient_categories,
     resolve_ingredients,
     resolve_my_recipes,
+    resolve_rate_recipe,
     resolve_recipe,
     resolve_recipe_categories,
     resolve_update_recipe,
@@ -244,6 +247,15 @@ class Mutation:
     async def delete_recipe(self, info: strawberry.Info, id: strawberry.ID) -> bool:
         user = require_user(info)
         return await resolve_delete_recipe(user.id, id)
+
+    @strawberry.mutation(
+        description="Rate a recipe — upsert: rating the same recipe again updates "
+                    "your existing rating instead of creating a new one. Provide commentText to "
+                    "also leave or replace a comment on this rating."
+    )
+    async def rate_recipe(self, info: strawberry.Info, input: RateRecipeInput) -> Rating:
+        user = require_user(info)
+        return await resolve_rate_recipe(user.id, input)
 
 
 schema = strawberry.Schema(query=Query, mutation=Mutation)
