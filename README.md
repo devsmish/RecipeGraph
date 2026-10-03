@@ -90,9 +90,9 @@ merged into `develop` via PR, releases go through `release/vX.Y.Z`.
 Active development. Core database schema, reference data seeding, complete auth system (Argon2id, JWT, 
 opaque refresh tokens), session GraphQL mutations (`register`, `login`, `refreshToken`, `logout`), auth 
 context, `currentUser` query, structured JSON logging (`structlog`), Sentry error tracking, Strawberry 
-exception masking, test coverage, read queries for recipes/dictionaries, **and full GraphQL mutations for 
-recipe management (`createRecipe`, `updateRecipe`, `deleteRecipe`) with strict ownership checks and 
-`strawberry.UNSET` field handling** are fully implemented.
+exception masking, test coverage, read queries for recipes/dictionaries, full recipe management mutations 
+(`createRecipe`, `updateRecipe`, `deleteRecipe`), **and the `rateRecipe` mutation with rating/comment upserts 
+and constraint validation** are fully implemented.
 
 ## License
 

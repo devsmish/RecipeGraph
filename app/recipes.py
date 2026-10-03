@@ -11,6 +11,7 @@ from enum import Enum
 
 import strawberry
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from db import async_session_maker
@@ -19,6 +20,7 @@ from models import IngredientCatalog as IngredientCatalogModel
 from models import IngredientCategory as IngredientCategoryModel
 from models import MeasurementUnit as MeasurementUnitModel
 from models import Rating as RatingModel
+from models import RatingComment as RatingCommentModel
 from models import Recipe as RecipeModel
 from models import RecipeCategory as RecipeCategoryModel
 from models import RecipeIngredient as RecipeIngredientModel
@@ -402,7 +404,7 @@ async def resolve_update_recipe(user_id: uuid.UUID, recipe_id: strawberry.ID, in
 
         # strawberry.UNSET distinguishes "field not provided in the mutation" from
         # "field explicitly set to null" — the latter matters for `description`,
-        # which is nullable and should be clearable.
+        # which is nullable in the schema (SPEC.md §5) and should be clearable.
         if input.category_id is not strawberry.UNSET:
             recipe.category_id = uuid.UUID(input.category_id)
         if input.title is not strawberry.UNSET:
@@ -437,3 +439,71 @@ async def resolve_delete_recipe(user_id: uuid.UUID, recipe_id: strawberry.ID) ->
         await session.delete(recipe)
         await session.commit()
         return True
+
+
+# rateRecipe
+
+
+class InvalidRatingValueError(Exception):
+    def __init__(self) -> None:
+        super().__init__("Rating value must be between 1 and 5")
+
+
+@strawberry.input(
+    description="Fields for rating a recipe. Provide commentText to also leave or "
+    "replace a comment on this rating — omit it to leave any existing comment untouched."
+)
+class RateRecipeInput:
+    recipe_id: strawberry.ID
+    value: int
+    comment_text: str | None = None
+
+
+async def resolve_rate_recipe(user_id: uuid.UUID, input: RateRecipeInput) -> Rating:
+    async with async_session_maker() as session:
+        recipe_exists = await session.execute(
+            select(RecipeModel.id).where(RecipeModel.id == uuid.UUID(input.recipe_id))
+        )
+        if recipe_exists.scalar_one_or_none() is None:
+            raise RecipeNotFoundError()
+
+        # Upsert by the UNIQUE(recipe_id, user_id) constraint: changing
+        # a rating updates this same row rather than creating a new one.
+        existing = await session.execute(
+            select(RatingModel).where(
+                RatingModel.recipe_id == uuid.UUID(input.recipe_id),
+                RatingModel.user_id == user_id,
+            )
+        )
+        rating = existing.scalar_one_or_none()
+
+        if rating is None:
+            rating = RatingModel(recipe_id=uuid.UUID(input.recipe_id), user_id=user_id, value=input.value)
+            session.add(rating)
+        else:
+            rating.value = input.value
+
+        try:
+            await session.flush()
+        except IntegrityError as exc:
+            await session.rollback()
+            raise InvalidRatingValueError() from exc
+
+        if input.comment_text is not None:
+            # UNIQUE(rating_id): at most one comment per rating.
+            comment_result = await session.execute(
+                select(RatingCommentModel).where(RatingCommentModel.rating_id == rating.id)
+            )
+            comment = comment_result.scalar_one_or_none()
+            if comment is None:
+                session.add(RatingCommentModel(rating_id=rating.id, text=input.comment_text))
+            else:
+                comment.text = input.comment_text
+
+        await session.commit()
+
+        # Reload with the comment relationship populated for the response.
+        final = await session.execute(
+            select(RatingModel).where(RatingModel.id == rating.id).options(selectinload(RatingModel.comment))
+        )
+        return _rating_from_model(final.scalar_one())
