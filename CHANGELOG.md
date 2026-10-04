@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.2.3] - 2026-10-04
+
+### Added
+- **Per-request DataLoaders (`../app/loaders.py`, closes #43):**
+  - One `strawberry.dataloader.DataLoader` per relation: `user` (recipe author and rating author), `recipe_category`, `ingredient`, `ingredient_category` (many-to-one) and `ingredients_by_recipe`, `tags_by_recipe`, `ratings_by_recipe` (one-to-many).
+  - Loaders are created fresh for every request in `get_context` (`info.context["loaders"]`), so the cache never outlives a request.
+  - Batch functions return exactly one result per key in key order; one-to-many loaders return `[]` for keys with no rows, many-to-one loaders return a `LookupError` for a missing row.
+  - `../tests/test_dataloaders.py`: query-count test (constant number of SELECTs for 4 vs 16 recipes), nested-data correctness incl. empty collections, loader contract (key order, empty lists, unknown keys), loaders-are-per-request.
+
+### Changed
+- All nested resolvers (`Recipe.author/category/ingredients/tags/ratings/avgRating/ratingsCount`, `Ingredient.category`, `RecipeIngredient.ingredient`, `Rating.user`) now use the loaders instead of opening their own session per field. `avgRating`/`ratingsCount` reuse the `ratings` batch (no extra query).
+- Ingredient lines are still ordered by `position`; tags are now ordered by name and ratings by creation time (previously unspecified order).
+
+### Measured
+- `myRecipes` with every nested field: 61 SELECTs for 4 recipes and 157 for 16 before; 10 for both after.
+
+---
+
 ## [0.2.2] - 2026-10-03
 
 ### Added
