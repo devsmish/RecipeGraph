@@ -1,7 +1,8 @@
 """GraphQL types and resolvers for recipes, ingredients, and their dictionaries.
 
-Nested fields on Recipe (author, category, ingredients, tags, ratings) are
-deliberately naive resolvers — one query each, no batching.
+Nested fields (Recipe.author/category/ingredients/tags/ratings, Ingredient.category,
+RecipeIngredient.ingredient, Rating.user) go through the per-request DataLoaders from
+loaders.py, so a list of N recipes costs one batched query per relation, not N.
 """
 
 import uuid
@@ -86,12 +87,9 @@ class Ingredient:
     _category_id: strawberry.Private[uuid.UUID]
 
     @strawberry.field(description="The category this ingredient belongs to.")
-    async def category(self) -> IngredientCategory:
-        async with async_session_maker() as session:
-            result = await session.execute(
-                select(IngredientCategoryModel).where(IngredientCategoryModel.id == self._category_id)
-            )
-            return IngredientCategory.from_model(result.scalar_one())
+    async def category(self, info: strawberry.Info) -> IngredientCategory:
+        model = await info.context["loaders"].ingredient_category.load(self._category_id)
+        return IngredientCategory.from_model(model)
 
     @staticmethod
     def from_model(model: IngredientCatalogModel) -> "Ingredient":
@@ -107,12 +105,9 @@ class RecipeIngredient:
     _ingredient_id: strawberry.Private[uuid.UUID]
 
     @strawberry.field(description="The ingredient from the master list.")
-    async def ingredient(self) -> Ingredient:
-        async with async_session_maker() as session:
-            result = await session.execute(
-                select(IngredientCatalogModel).where(IngredientCatalogModel.id == self._ingredient_id)
-            )
-            return Ingredient.from_model(result.scalar_one())
+    async def ingredient(self, info: strawberry.Info) -> Ingredient:
+        model = await info.context["loaders"].ingredient.load(self._ingredient_id)
+        return Ingredient.from_model(model)
 
     @staticmethod
     def from_model(model: RecipeIngredientModel) -> "RecipeIngredient":
@@ -141,10 +136,9 @@ class Rating:
     _user_id: strawberry.Private[uuid.UUID]
 
     @strawberry.field(description="The user who left this rating.")
-    async def user(self) -> "RecipeAuthor":
-        async with async_session_maker() as session:
-            result = await session.execute(select(UserModel).where(UserModel.id == self._user_id))
-            return RecipeAuthor.from_model(result.scalar_one())
+    async def user(self, info: strawberry.Info) -> "RecipeAuthor":
+        model = await info.context["loaders"].user.load(self._user_id)
+        return RecipeAuthor.from_model(model)
 
 
 @strawberry.type(description="The author of a recipe — a minimal public view of a user.")
@@ -169,66 +163,40 @@ class Recipe:
     _category_id: strawberry.Private[uuid.UUID]
 
     @strawberry.field(description="Who created this recipe.")
-    async def author(self) -> RecipeAuthor:
-        async with async_session_maker() as session:
-            result = await session.execute(select(UserModel).where(UserModel.id == self._author_id))
-            return RecipeAuthor.from_model(result.scalar_one())
+    async def author(self, info: strawberry.Info) -> RecipeAuthor:
+        model = await info.context["loaders"].user.load(self._author_id)
+        return RecipeAuthor.from_model(model)
 
     @strawberry.field(description="The single category this recipe belongs to.")
-    async def category(self) -> RecipeCategory:
-        async with async_session_maker() as session:
-            result = await session.execute(
-                select(RecipeCategoryModel).where(RecipeCategoryModel.id == self._category_id)
-            )
-            return RecipeCategory.from_model(result.scalar_one())
+    async def category(self, info: strawberry.Info) -> RecipeCategory:
+        model = await info.context["loaders"].recipe_category.load(self._category_id)
+        return RecipeCategory.from_model(model)
 
     @strawberry.field(description="Ingredients, in the order they were listed.")
-    async def ingredients(self) -> list[RecipeIngredient]:
-        async with async_session_maker() as session:
-            result = await session.execute(
-                select(RecipeIngredientModel)
-                .where(RecipeIngredientModel.recipe_id == uuid.UUID(self.id))
-                .order_by(RecipeIngredientModel.position)
-            )
-            return [RecipeIngredient.from_model(row) for row in result.scalars()]
+    async def ingredients(self, info: strawberry.Info) -> list[RecipeIngredient]:
+        rows = await info.context["loaders"].ingredients_by_recipe.load(uuid.UUID(self.id))
+        return [RecipeIngredient.from_model(row) for row in rows]
 
     @strawberry.field(description="Free-form tags attached to this recipe.")
-    async def tags(self) -> list[Tag]:
-        async with async_session_maker() as session:
-            result = await session.execute(
-                select(RecipeModel)
-                .where(RecipeModel.id == uuid.UUID(self.id))
-                .options(selectinload(RecipeModel.tags))
-            )
-            recipe = result.scalar_one()
-            return [Tag.from_model(tag) for tag in recipe.tags]
+    async def tags(self, info: strawberry.Info) -> list[Tag]:
+        rows = await info.context["loaders"].tags_by_recipe.load(uuid.UUID(self.id))
+        return [Tag.from_model(tag) for tag in rows]
 
     @strawberry.field(description="All ratings left on this recipe.")
-    async def ratings(self) -> list[Rating]:
-        async with async_session_maker() as session:
-            result = await session.execute(
-                select(RatingModel)
-                .where(RatingModel.recipe_id == uuid.UUID(self.id))
-                .options(selectinload(RatingModel.comment))
-            )
-            return [_rating_from_model(row) for row in result.scalars()]
+    async def ratings(self, info: strawberry.Info) -> list[Rating]:
+        rows = await info.context["loaders"].ratings_by_recipe.load(uuid.UUID(self.id))
+        return [_rating_from_model(row) for row in rows]
 
     @strawberry.field(description="Average rating, or null if the recipe has no ratings yet.")
-    async def avg_rating(self) -> float | None:
-        async with async_session_maker() as session:
-            result = await session.execute(
-                select(RatingModel.value).where(RatingModel.recipe_id == uuid.UUID(self.id))
-            )
-            values = list(result.scalars())
-            return sum(values) / len(values) if values else None
+    async def avg_rating(self, info: strawberry.Info) -> float | None:
+        # Reuses the same batched ratings load as `ratings` / `ratingsCount` — no extra query.
+        rows = await info.context["loaders"].ratings_by_recipe.load(uuid.UUID(self.id))
+        return sum(row.value for row in rows) / len(rows) if rows else None
 
     @strawberry.field(description="How many ratings this recipe has.")
-    async def ratings_count(self) -> int:
-        async with async_session_maker() as session:
-            result = await session.execute(
-                select(RatingModel.id).where(RatingModel.recipe_id == uuid.UUID(self.id))
-            )
-            return len(list(result.scalars()))
+    async def ratings_count(self, info: strawberry.Info) -> int:
+        rows = await info.context["loaders"].ratings_by_recipe.load(uuid.UUID(self.id))
+        return len(rows)
 
     @staticmethod
     def from_model(model: RecipeModel) -> "Recipe":
@@ -404,7 +372,7 @@ async def resolve_update_recipe(user_id: uuid.UUID, recipe_id: strawberry.ID, in
 
         # strawberry.UNSET distinguishes "field not provided in the mutation" from
         # "field explicitly set to null" — the latter matters for `description`,
-        # which is nullable in the schema (SPEC.md §5) and should be clearable.
+        # which is nullable in the schema and should be clearable.
         if input.category_id is not strawberry.UNSET:
             recipe.category_id = uuid.UUID(input.category_id)
         if input.title is not strawberry.UNSET:

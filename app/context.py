@@ -13,6 +13,7 @@ from sqlalchemy import select
 
 from auth import JWT_ALGORITHM, JWT_SECRET
 from db import async_session_maker
+from loaders import create_loaders
 from models import User as UserModel
 
 
@@ -48,7 +49,9 @@ async def get_context(request: Request) -> dict:
         token = auth_header.removeprefix("Bearer ")
         user_model = await _load_user_from_access_token(token)
 
-    return {"user": user_model}
+    # Fresh DataLoaders for every request: their cache must live exactly as long as
+    # one request, never be shared between requests (see loaders.py).
+    return {"user": user_model, "loaders": create_loaders()}
 
 
 def require_user(info) -> UserModel:
