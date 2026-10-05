@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.4] - 2026-10-05
+
+### Removed
+- **Duplicate DB engine in `app/main.py`:** `main.py` read `DATABASE_URL` straight from the environment and created its own SQLAlchemy engine, duplicating `db.py` (the single source of truth, built from `POSTGRES_*`). `docker-compose.yml` never passed `DATABASE_URL` to the `api` service, so the app depended on an undocumented variable.
+- **Dead `Query` type in `app/main.py`:** an unused copy of `hello`/`health`; the real ones live in `schema.py`.
+
+### Added
+- `../tests/test_main.py`: smoke tests for `/`, `hello` and `health`.
+
+---
+
 ## [0.2.3] - 2026-10-04
 
 ### Added
