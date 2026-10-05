@@ -91,9 +91,9 @@ Active development. Core database schema, reference data seeding, complete auth 
 opaque refresh tokens), session GraphQL mutations (`register`, `login`, `refreshToken`, `logout`), auth 
 context, `currentUser` query, structured JSON logging (`structlog`), Sentry error tracking, Strawberry 
 exception masking, test coverage, read queries for recipes/dictionaries, full recipe management mutations 
-(`createRecipe`, `updateRecipe`, `deleteRecipe`), `rateRecipe` mutation with rating/comment upserts, **and 
-per-request DataLoaders solving the N+1 query problem for all nested recipe fields and relations** are fully 
-implemented.
+(`createRecipe`, `updateRecipe`, `deleteRecipe`), `rateRecipe` mutation with rating/comment upserts, per-request 
+DataLoaders solving the N+1 query problem, **and cleaned up application startup architecture (unified DB engine 
+in `db.py` and removal of dead main schema code)** are fully implemented.
 
 ## License
 
