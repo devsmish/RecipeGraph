@@ -1,36 +1,12 @@
 """FastAPI application entry point — wires up the GraphQL router."""
 
-import os
-
-import strawberry
 from fastapi import FastAPI
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine
 from strawberry.fastapi import GraphQLRouter
 
 from context import get_context
 from logging_config import configure_logging
 from schema import schema
 from sentry_config import configure_sentry
-
-DATABASE_URL = os.environ["DATABASE_URL"]
-engine = create_async_engine(DATABASE_URL, echo=False)
-
-
-@strawberry.type
-class Query:
-    @strawberry.field
-    def hello(self) -> str:
-        """Check that the API is responding."""
-        return "RecipeGraph API is alive"
-
-    @strawberry.field
-    async def health(self) -> str:
-        """Checks the actual connection to Postgres."""
-        async with engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
-        return "postgres: ok"
-
 
 configure_logging()
 configure_sentry()
