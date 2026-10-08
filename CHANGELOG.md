@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.5] - 2026-10-08
+
+### Fixed
+- **`pytest` inside the `api` container collected 0 tests.** The container only had the contents of `app/` (volume `./app:/app`), so neither `tests/` nor `pytest.ini` were visible to it — the README command could not work, and pytest-asyncio warned about the unset `asyncio_default_fixture_loop_scope` because `pytest.ini` was never read.
+- **Most DB tests failed with "attached to a different loop" / "another operation is in progress".** Async fixtures ran on the session event loop (`asyncio_default_fixture_loop_scope = session`) while each test ran on its own function-scoped loop, so pooled asyncpg connections created by a fixture were reused on another loop. `tests/conftest.py` now marks every async test with `loop_scope="session"` (`pytest_collection_modifyitems`, `append=False` so it wins over the marker auto mode adds).
+
+### Changed
+- `docker-compose.yml`: `api` mounts `./tests` → `/tests` and `./pytest.ini` → `/pytest.ini` (read-only). They are deliberately **not** mounted under `/app`: a bind mount nested inside the `./app` bind mount makes Docker create empty stub files/dirs (`app/pytest.ini`, `app/tests/`) on the host.
+- `pytest.ini`: `pythonpath = app tests` — relative to the file, so it works from the repo root and in the container (where `/app`, `/tests`, `/pytest.ini` mirror the repo layout). `tests` is required for `from conftest import ...`.
+- `README.md`: tests must run inside the container with `-w /`; explains the `KeyError: 'POSTGRES_USER'` seen when running `pytest` on the host, and that the container must be recreated after changing the compose file.
+
+---
+
 ## [0.2.4] - 2026-10-05
 
 ### Removed
