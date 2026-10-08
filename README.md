@@ -80,6 +80,13 @@ see `postgres/init.sql`), never against dev data:
 docker compose exec -e POSTGRES_DB=recipes_test_db api pytest -v
 ```
 
+(`-w /` runs pytest from the container root, where `pytest.ini`, `tests/` and `app/` sit side by side, as in the repo.)
+
+Run tests inside the `api` container: running plain `pytest` on the host fails with
+`KeyError: 'POSTGRES_USER'`, because the database settings come from the container's environment.
+`tests/` and `pytest.ini` are mounted into the container by `docker-compose.yml`; after changing
+the compose file recreate the container with `docker compose up -d api`.
+
 ## Contributing / branching model
 
 `main` and `develop` are protected — all work happens on `feature/<issue-number>-<slug>` branches
