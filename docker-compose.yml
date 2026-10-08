@@ -43,6 +43,11 @@ services:
       SENTRY_DSN: "${SENTRY_DSN:-}"
     volumes:
       - ./app:/app
+      # Tests and pytest config live outside app/ — mounted at the container root (NOT inside /app:
+      # a bind mount nested in another bind mount makes Docker create empty stub files/dirs in ./app
+      # on the host). Same relative layout as the repo: /app, /tests, /pytest.ini.
+      - ./tests:/tests:ro
+      - ./pytest.ini:/pytest.ini:ro
     ports:
       - "8000:8000"
     networks:
