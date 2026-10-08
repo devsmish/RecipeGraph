@@ -11,7 +11,9 @@ import os
 
 os.environ.setdefault("JWT_SECRET", "test-secret-for-pytest-only")
 
+import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
+from pytest_asyncio import is_async_test  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
@@ -31,6 +33,23 @@ if "test" not in DATABASE_URL:
         "Run pytest with POSTGRES_DB pointing at the disposable test database:\n"
         "  docker compose exec -e POSTGRES_DB=recipes_test_db api pytest"
     )
+
+
+def pytest_collection_modifyitems(items):
+    """Run every async test on the same session-wide event loop as the async fixtures.
+
+    The SQLAlchemy engine in db.py keeps a connection pool, and asyncpg connections are
+    bound to the event loop they were created on. By default pytest-asyncio runs each
+    test on its own function-scoped loop, while our fixtures run on the session loop
+    (asyncio_default_fixture_loop_scope = session) — so a pooled connection opened by a
+    fixture gets reused by a test on a different loop and fails with "attached to a
+    different loop" / "another operation is in progress". `append=False` puts our marker
+    first so it wins over the plain `asyncio` marker that auto mode adds.
+    """
+    session_loop = pytest.mark.asyncio(loop_scope="session")
+    for item in items:
+        if is_async_test(item):
+            item.add_marker(session_loop, append=False)
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
