@@ -16,9 +16,9 @@ response goes to the client. What happens to it depends on where it came from:
   could leak internal details (file paths, SQL, stack traces).
 """
 
-import sentry_sdk
 import structlog
 from graphql import GraphQLError
+from sentry_sdk.api import capture_exception
 from strawberry.extensions import SchemaExtension
 
 from errors import PublicError
@@ -48,7 +48,7 @@ def _sanitize(error: GraphQLError) -> GraphQLError:
         exception_type=type(original).__name__,
         exc_info=original,
     )
-    sentry_sdk.capture_exception(original)
+    capture_exception(original)
 
     return GraphQLError(
         message="Internal server error",
