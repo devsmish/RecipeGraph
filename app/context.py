@@ -13,11 +13,12 @@ from sqlalchemy import select
 
 from auth import JWT_ALGORITHM, JWT_SECRET
 from db import async_session_maker
+from errors import PublicError
 from loaders import create_loaders
 from models import User as UserModel
 
 
-class NotAuthenticatedError(Exception):
+class NotAuthenticatedError(PublicError):
     def __init__(self) -> None:
         super().__init__("Authentication required")
 
