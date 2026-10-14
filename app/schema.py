@@ -15,6 +15,8 @@ from auth import (
 )
 from context import require_user
 from db import async_session_maker, engine
+from error_handling import ErrorLoggingExtension
+from errors import PublicError
 from models import RefreshToken as RefreshTokenModel
 from models import User as UserModel
 from recipes import (
@@ -38,17 +40,17 @@ from recipes import (
 )
 
 
-class UsernameOrEmailTakenError(Exception):
+class UsernameOrEmailTakenError(PublicError):
     def __init__(self) -> None:
         super().__init__("Username or email is already taken")
 
 
-class InvalidCredentialsError(Exception):
+class InvalidCredentialsError(PublicError):
     def __init__(self) -> None:
         super().__init__("Invalid email or password")
 
 
-class InvalidRefreshTokenError(Exception):
+class InvalidRefreshTokenError(PublicError):
     def __init__(self) -> None:
         super().__init__("Invalid or expired refresh token")
 
@@ -258,4 +260,4 @@ class Mutation:
         return await resolve_rate_recipe(user.id, input)
 
 
-schema = strawberry.Schema(query=Query, mutation=Mutation)
+schema = strawberry.Schema(query=Query, mutation=Mutation, extensions=[ErrorLoggingExtension])

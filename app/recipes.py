@@ -16,6 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from db import async_session_maker
+from errors import PublicError
 from models import Difficulty as DifficultyModel
 from models import IngredientCatalog as IngredientCatalogModel
 from models import IngredientCategory as IngredientCategoryModel
@@ -231,7 +232,7 @@ def _rating_from_model(model: RatingModel) -> Rating:
     )
 
 
-class RecipeNotFoundError(Exception):
+class RecipeNotFoundError(PublicError):
     def __init__(self) -> None:
         super().__init__("Recipe not found")
 
@@ -281,7 +282,7 @@ async def resolve_ingredients(search: str | None) -> list[Ingredient]:
 # Mutations
 
 
-class NotRecipeOwnerError(Exception):
+class NotRecipeOwnerError(PublicError):
     def __init__(self) -> None:
         super().__init__("You can only modify your own recipes")
 
@@ -412,7 +413,7 @@ async def resolve_delete_recipe(user_id: uuid.UUID, recipe_id: strawberry.ID) ->
 # rateRecipe
 
 
-class InvalidRatingValueError(Exception):
+class InvalidRatingValueError(PublicError):
     def __init__(self) -> None:
         super().__init__("Rating value must be between 1 and 5")
 
@@ -441,7 +442,7 @@ async def resolve_rate_recipe(user_id: uuid.UUID, input: RateRecipeInput) -> Rat
             select(RatingModel).where(
                 RatingModel.recipe_id == uuid.UUID(input.recipe_id),
                 RatingModel.user_id == user_id,
-            )
+                )
         )
         rating = existing.scalar_one_or_none()
 

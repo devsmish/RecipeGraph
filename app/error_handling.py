@@ -1,32 +1,62 @@
 """GraphQL error handling.
 
-Every exception a resolver raises ends up here before the response goes to the client.
-Two very different things happen to it, depending on what kind of exception it is:
+Every error in a GraphQL result passes through `ErrorLoggingExtension` before the
+response goes to the client. What happens to it depends on where it came from:
 
-- "Safe" business exceptions (InvalidCredentialsError, NotAuthenticatedError, etc.) were
-  written with a message that's already fine to show a client — these pass through
-  unchanged.
-- Anything else is unexpected: a bug, a database hiccup, whatever. Its full details
+- **Public errors** (`PublicError` subclasses, see errors.py — "Invalid email or
+  password", "Recipe not found", ...): the message was written for the client, so the
+  error passes through unchanged. Logged at WARNING; not sent to Sentry — these are
+  normal outcomes, not bugs.
+- **GraphQL-level errors** (syntax errors, unknown fields, missing variables, ...):
+  produced by graphql-core from the client's own query, so there is no underlying
+  exception and the message is safe. Passed through, logged at WARNING.
+- **Anything else** is unexpected: a bug, a database hiccup, whatever. Its full details
   (type, traceback) are logged via structlog and reported to Sentry, but the client only
   ever sees a generic "Internal server error" — never the raw exception message, which
   could leak internal details (file paths, SQL, stack traces).
 """
 
-import sentry_sdk
 import structlog
 from graphql import GraphQLError
+from sentry_sdk.api import capture_exception
 from strawberry.extensions import SchemaExtension
+
+from errors import PublicError
 
 logger = structlog.get_logger("recipegraph.graphql")
 
-_SAFE_EXCEPTIONS = frozenset(
-    {
-        "InvalidCredentialsError",
-        "UsernameOrEmailTakenError",
-        "InvalidRefreshTokenError",
-        "NotAuthenticatedError",
-    }
-)
+
+def _sanitize(error: GraphQLError) -> GraphQLError:
+    original = error.original_error
+
+    if original is None:
+        logger.warning("graphql_request_error", path=error.path, message=error.message)
+        return error
+
+    if isinstance(original, PublicError):
+        logger.warning(
+            "graphql_public_error",
+            path=error.path,
+            exception_type=type(original).__name__,
+            message=error.message,
+        )
+        return error
+
+    logger.error(
+        "graphql_resolver_error",
+        path=error.path,
+        exception_type=type(original).__name__,
+        exc_info=original,
+    )
+    capture_exception(original)
+
+    return GraphQLError(
+        message="Internal server error",
+        nodes=error.nodes,
+        source=error.source,
+        positions=error.positions,
+        path=error.path,
+    )
 
 
 class ErrorLoggingExtension(SchemaExtension):
@@ -37,34 +67,4 @@ class ErrorLoggingExtension(SchemaExtension):
         if result is None or not result.errors:
             return
 
-        safe_errors = []
-        for error in result.errors:
-            original = error.original_error
-            exception_type = type(original).__name__ if original is not None else None
-
-            logger.error(
-                "graphql_resolver_error",
-                path=error.path,
-                exception_type=exception_type,
-                exc_info=original,
-            )
-
-            if exception_type in _SAFE_EXCEPTIONS:
-                safe_errors.append(error)
-                continue
-
-            # Unexpected — report to Sentry and hide the real message from the client.
-            if original is not None:
-                sentry_sdk.capture_exception(original)
-
-            safe_errors.append(
-                GraphQLError(
-                    message="Internal server error",
-                    nodes=error.nodes,
-                    source=error.source,
-                    positions=error.positions,
-                    path=error.path,
-                )
-            )
-
-        result.errors = safe_errors
+        result.errors = [_sanitize(error) for error in result.errors]

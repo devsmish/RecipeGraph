@@ -74,18 +74,17 @@ docker compose exec api alembic current                               # show the
 ### Tests
 
 Tests run against a separate, disposable database (`recipes_test_db`, created automatically —
-see `postgres/init.sql`), never against dev data:
+see `postgres/init.sql`), never against dev data. Run them inside the `api` container:
 
 ```bash
-docker compose exec -e POSTGRES_DB=recipes_test_db api pytest -v
+docker compose exec -w / -e POSTGRES_DB=recipes_test_db api pytest -v
 ```
 
-(`-w /` runs pytest from the container root, where `pytest.ini`, `tests/` and `app/` sit side by side, as in the repo.)
-
-Run tests inside the `api` container: running plain `pytest` on the host fails with
-`KeyError: 'POSTGRES_USER'`, because the database settings come from the container's environment.
-`tests/` and `pytest.ini` are mounted into the container by `docker-compose.yml`; after changing
-the compose file recreate the container with `docker compose up -d api`.
+`-w /` runs pytest from the container root, where `pytest.ini`, `tests/` and `app/` sit side by side,
+as in the repo. Plain `pytest` on the host fails with `KeyError: 'POSTGRES_USER'`, because the database
+settings come from the container's environment. `tests/` and `pytest.ini` are mounted into the container
+by `docker-compose.yml`; after changing the compose file recreate the container with
+`docker compose up -d api`.
 
 ## Contributing / branching model
 
@@ -99,8 +98,8 @@ opaque refresh tokens), session GraphQL mutations (`register`, `login`, `refresh
 context, `currentUser` query, structured JSON logging (`structlog`), Sentry error tracking, Strawberry 
 exception masking, test coverage, read queries for recipes/dictionaries, full recipe management mutations 
 (`createRecipe`, `updateRecipe`, `deleteRecipe`), `rateRecipe` mutation with rating/comment upserts, per-request 
-DataLoaders solving the N+1 query problem, **and cleaned up application startup architecture (unified DB engine 
-in `db.py` and removal of dead main schema code)** are fully implemented.
+DataLoaders solving the N+1 query problem, cleaned up application startup architecture, **and strict GraphQL 
+exception masking via `ErrorLoggingExtension` and `PublicError` exception hierarchy** are fully implemented.
 
 ## License
 
