@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.7] - 2026-10-19
+
+### Fixed
+- **A malformed ID argument produced "Internal server error"**, an ERROR log line and a Sentry report. Recipe operations convert client-supplied IDs with `uuid.UUID(...)`, which raises `ValueError` on input like `recipe(id: "abc")`; since 0.2.6 that counts as an unexpected error. It is a client mistake, so the client now gets `Invalid ID for "id": expected a UUID` (naming the exact field), it is logged at WARNING and is not sent to Sentry.
+- **`createRecipe` / `updateRecipe` validate every ID before touching the database**, so a bad ID can no longer be noticed after the recipe row has already been inserted (`updateRecipe` also no longer applies earlier field changes before failing on a later ID).
+
+### Added
+- `../app/ids.py`: `parse_uuid(value, field_name)` and `InvalidIdError` (a `PublicError`). The message names the GraphQL field (`categoryId`, `ingredients[1].ingredientId`, `tagIds[0]`, ...) and deliberately does not echo the offending value.
+- `../tests/test_ids.py`: unit tests for `parse_uuid` (canonical, uppercase and hyphen-less forms accepted; short, long, non-hex, empty, `None` and non-string values rejected; message contents).
+- `../tests/test_invalid_ids.py`: one end-to-end test per client-supplied ID — `recipe(id)`, `createRecipe` (`categoryId`, `ingredients[].ingredientId`, `tagIds`), `updateRecipe` (`id`, `categoryId`, `ingredients[].ingredientId`, `tagIds`), `deleteRecipe(id)`, `rateRecipe(recipeId)` — plus: nothing is written to the database, no Sentry report, the raw value is not echoed back, and well-formed but unknown IDs behave as before (`Recipe not found`, `deleteRecipe` → `false`).
+
+### Changed
+- `recipes.py` parses client-supplied IDs through `parse_uuid`. The `uuid.UUID(self.id)` calls on `Recipe` fields stay as they are: they parse IDs the server generated itself.
+- `updateRecipe` with an explicit `categoryId: null` now returns the "Invalid ID" message instead of an "Internal server error".
+
+---
+
 ## [0.2.6] - 2026-10-14
 
 ### Fixed

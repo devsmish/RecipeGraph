@@ -98,8 +98,9 @@ opaque refresh tokens), session GraphQL mutations (`register`, `login`, `refresh
 context, `currentUser` query, structured JSON logging (`structlog`), Sentry error tracking, Strawberry 
 exception masking, test coverage, read queries for recipes/dictionaries, full recipe management mutations 
 (`createRecipe`, `updateRecipe`, `deleteRecipe`), `rateRecipe` mutation with rating/comment upserts, per-request 
-DataLoaders solving the N+1 query problem, cleaned up application startup architecture, **and strict GraphQL 
-exception masking via `ErrorLoggingExtension` and `PublicError` exception hierarchy** are fully implemented.
+DataLoaders solving the N+1 query problem, cleaned up application startup architecture, strict GraphQL 
+exception masking via `ErrorLoggingExtension` and `PublicError`, **and explicit client-side UUID validation 
+with clean error messages (`InvalidIdError`)** are fully implemented.
 
 ## License
 

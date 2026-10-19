@@ -17,6 +17,7 @@ from sqlalchemy.orm import selectinload
 
 from db import async_session_maker
 from errors import PublicError
+from ids import parse_uuid
 from models import Difficulty as DifficultyModel
 from models import IngredientCatalog as IngredientCatalogModel
 from models import IngredientCategory as IngredientCategoryModel
@@ -238,10 +239,9 @@ class RecipeNotFoundError(PublicError):
 
 
 async def resolve_recipe(recipe_id: strawberry.ID) -> Recipe:
+    parsed_id = parse_uuid(recipe_id, "id")
     async with async_session_maker() as session:
-        result = await session.execute(
-            select(RecipeModel).where(RecipeModel.id == uuid.UUID(recipe_id))
-        )
+        result = await session.execute(select(RecipeModel).where(RecipeModel.id == parsed_id))
         model = result.scalar_one_or_none()
         if model is None:
             raise RecipeNotFoundError()
@@ -321,13 +321,29 @@ class UpdateRecipeInput:
     tag_ids: list[strawberry.ID] | None = strawberry.UNSET
 
 
-async def _replace_ingredients(session, recipe_id: uuid.UUID, lines: list[RecipeIngredientInput]) -> None:
+def _parse_ingredient_lines(
+    lines: list[RecipeIngredientInput],
+) -> list[tuple[uuid.UUID, RecipeIngredientInput]]:
+    """Validate every ingredient ID up front, before anything is written to the database."""
+    return [
+        (parse_uuid(line.ingredient_id, f"ingredients[{index}].ingredientId"), line)
+        for index, line in enumerate(lines)
+    ]
+
+
+def _parse_tag_ids(tag_ids: list[strawberry.ID]) -> list[uuid.UUID]:
+    return [parse_uuid(tag_id, f"tagIds[{index}]") for index, tag_id in enumerate(tag_ids)]
+
+
+async def _replace_ingredients(
+    session, recipe_id: uuid.UUID, lines: list[tuple[uuid.UUID, RecipeIngredientInput]]
+) -> None:
     await session.execute(delete(RecipeIngredientModel).where(RecipeIngredientModel.recipe_id == recipe_id))
-    for position, line in enumerate(lines):
+    for position, (ingredient_id, line) in enumerate(lines):
         session.add(
             RecipeIngredientModel(
                 recipe_id=recipe_id,
-                ingredient_id=uuid.UUID(line.ingredient_id),
+                ingredient_id=ingredient_id,
                 amount=Decimal(str(line.amount)),
                 unit=MeasurementUnitModel(line.unit.value),
                 position=position,
@@ -335,17 +351,23 @@ async def _replace_ingredients(session, recipe_id: uuid.UUID, lines: list[Recipe
         )
 
 
-async def _replace_tags(session, recipe_id: uuid.UUID, tag_ids: list[strawberry.ID]) -> None:
+async def _replace_tags(session, recipe_id: uuid.UUID, tag_ids: list[uuid.UUID]) -> None:
     await session.execute(recipe_tags.delete().where(recipe_tags.c.recipe_id == recipe_id))
     for tag_id in tag_ids:
-        await session.execute(recipe_tags.insert().values(recipe_id=recipe_id, tag_id=uuid.UUID(tag_id)))
+        await session.execute(recipe_tags.insert().values(recipe_id=recipe_id, tag_id=tag_id))
 
 
 async def resolve_create_recipe(user_id: uuid.UUID, input: CreateRecipeInput) -> Recipe:
+    # Validate every client-supplied ID first, so a malformed one is rejected before
+    # anything is written to the database.
+    category_id = parse_uuid(input.category_id, "categoryId")
+    ingredient_lines = _parse_ingredient_lines(input.ingredients)
+    tag_ids = _parse_tag_ids(list(input.tag_ids))
+
     async with async_session_maker() as session:
         recipe = RecipeModel(
             author_id=user_id,
-            category_id=uuid.UUID(input.category_id),
+            category_id=category_id,
             title=input.title,
             description=input.description,
             cooking_time_minutes=input.cooking_time_minutes,
@@ -355,16 +377,26 @@ async def resolve_create_recipe(user_id: uuid.UUID, input: CreateRecipeInput) ->
         session.add(recipe)
         await session.flush()  # assigns recipe.id, needed by the two helpers below
 
-        await _replace_ingredients(session, recipe.id, input.ingredients)
-        await _replace_tags(session, recipe.id, list(input.tag_ids))
+        await _replace_ingredients(session, recipe.id, ingredient_lines)
+        await _replace_tags(session, recipe.id, tag_ids)
 
         await session.commit()
         return Recipe.from_model(recipe)
 
 
 async def resolve_update_recipe(user_id: uuid.UUID, recipe_id: strawberry.ID, input: UpdateRecipeInput) -> Recipe:
+    # Validate every client-supplied ID first (see resolve_create_recipe).
+    parsed_recipe_id = parse_uuid(recipe_id, "id")
+    category_id = (
+        parse_uuid(input.category_id, "categoryId") if input.category_id is not strawberry.UNSET else None
+    )
+    ingredient_lines = (
+        _parse_ingredient_lines(input.ingredients) if input.ingredients is not strawberry.UNSET else None
+    )
+    tag_ids = _parse_tag_ids(list(input.tag_ids)) if input.tag_ids is not strawberry.UNSET else None
+
     async with async_session_maker() as session:
-        result = await session.execute(select(RecipeModel).where(RecipeModel.id == uuid.UUID(recipe_id)))
+        result = await session.execute(select(RecipeModel).where(RecipeModel.id == parsed_recipe_id))
         recipe = result.scalar_one_or_none()
         if recipe is None:
             raise RecipeNotFoundError()
@@ -373,9 +405,9 @@ async def resolve_update_recipe(user_id: uuid.UUID, recipe_id: strawberry.ID, in
 
         # strawberry.UNSET distinguishes "field not provided in the mutation" from
         # "field explicitly set to null" — the latter matters for `description`,
-        # which is nullable in the schema and should be clearable.
-        if input.category_id is not strawberry.UNSET:
-            recipe.category_id = uuid.UUID(input.category_id)
+        # which is nullable in the schema (SPEC.md §5) and should be clearable.
+        if category_id is not None:
+            recipe.category_id = category_id
         if input.title is not strawberry.UNSET:
             recipe.title = input.title
         if input.description is not strawberry.UNSET:
@@ -386,18 +418,19 @@ async def resolve_update_recipe(user_id: uuid.UUID, recipe_id: strawberry.ID, in
             recipe.difficulty = DifficultyModel(input.difficulty.value)
         if input.servings is not strawberry.UNSET:
             recipe.servings = input.servings
-        if input.ingredients is not strawberry.UNSET:
-            await _replace_ingredients(session, recipe.id, input.ingredients)
-        if input.tag_ids is not strawberry.UNSET:
-            await _replace_tags(session, recipe.id, list(input.tag_ids))
+        if ingredient_lines is not None:
+            await _replace_ingredients(session, recipe.id, ingredient_lines)
+        if tag_ids is not None:
+            await _replace_tags(session, recipe.id, tag_ids)
 
         await session.commit()
         return Recipe.from_model(recipe)
 
 
 async def resolve_delete_recipe(user_id: uuid.UUID, recipe_id: strawberry.ID) -> bool:
+    parsed_recipe_id = parse_uuid(recipe_id, "id")
     async with async_session_maker() as session:
-        result = await session.execute(select(RecipeModel).where(RecipeModel.id == uuid.UUID(recipe_id)))
+        result = await session.execute(select(RecipeModel).where(RecipeModel.id == parsed_recipe_id))
         recipe = result.scalar_one_or_none()
 
         if recipe is None:
@@ -429,10 +462,9 @@ class RateRecipeInput:
 
 
 async def resolve_rate_recipe(user_id: uuid.UUID, input: RateRecipeInput) -> Rating:
+    recipe_id = parse_uuid(input.recipe_id, "recipeId")
     async with async_session_maker() as session:
-        recipe_exists = await session.execute(
-            select(RecipeModel.id).where(RecipeModel.id == uuid.UUID(input.recipe_id))
-        )
+        recipe_exists = await session.execute(select(RecipeModel.id).where(RecipeModel.id == recipe_id))
         if recipe_exists.scalar_one_or_none() is None:
             raise RecipeNotFoundError()
 
@@ -440,14 +472,14 @@ async def resolve_rate_recipe(user_id: uuid.UUID, input: RateRecipeInput) -> Rat
         # a rating updates this same row rather than creating a new one.
         existing = await session.execute(
             select(RatingModel).where(
-                RatingModel.recipe_id == uuid.UUID(input.recipe_id),
+                RatingModel.recipe_id == recipe_id,
                 RatingModel.user_id == user_id,
-                )
+            )
         )
         rating = existing.scalar_one_or_none()
 
         if rating is None:
-            rating = RatingModel(recipe_id=uuid.UUID(input.recipe_id), user_id=user_id, value=input.value)
+            rating = RatingModel(recipe_id=recipe_id, user_id=user_id, value=input.value)
             session.add(rating)
         else:
             rating.value = input.value
