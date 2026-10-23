@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.8] - 2026-10-23
+
+### Fixed
+- **`rateRecipe` treated every database integrity error as "Rating value must be between 1 and 5".** The 1–5 range was only enforced by the CHECK constraint, and the resolver wrapped `flush()` in `except IntegrityError` → `InvalidRatingValueError`. So other failures were mislabelled: for example a recipe deleted between the existence check and the INSERT (foreign key violation) was reported to the client as an invalid rating value.
+
+### Changed
+- The rating value is validated in the resolver (`MIN_RATING_VALUE` / `MAX_RATING_VALUE`) before any database work; out-of-range values no longer cause a query. The CHECK constraint stays as a safety net.
+- Integrity errors from saving a rating are mapped by PostgreSQL error code and constraint name (`_map_rating_integrity_error`): the range CHECK (`ck_rating_value_range`) → `InvalidRatingValueError`; a foreign key violation on the recipe → `RecipeNotFoundError`. Anything else (for example a unique violation from a concurrent first rating by the same user) propagates as an unexpected error: masked as "Internal server error", logged at ERROR and reported to Sentry.
+
+### Added
+- `../tests/test_rate_recipe_validation.py`: out-of-range values (0, 6, -1, 100, -100) rejected without touching `recipes`/`ratings`; boundary values 1 and 5 accepted; the CHECK-constraint path (resolver range widened so the value reaches the database); recipe deleted after the lookup → `Recipe not found`; concurrent unique violation → unexpected error, reported to Sentry, not mislabelled. The two race conditions are simulated deterministically by running an action right after the resolver's rating lookup.
+
+### Known gap
+- Two simultaneous *first* ratings by the same user on the same recipe: the second one now fails with "Internal server error" (unique violation) instead of being turned into an update. Handling it (retry as an update) is not part of this task.
+
+---
+
 ## [0.2.7] - 2026-10-19
 
 ### Fixed
