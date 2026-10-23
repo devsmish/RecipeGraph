@@ -86,6 +86,36 @@ settings come from the container's environment. `tests/` and `pytest.ini` are mo
 by `docker-compose.yml`; after changing the compose file recreate the container with
 `docker compose up -d api`.
 
+## API errors
+
+GraphQL errors fall into three groups, and the group decides what the client sees:
+
+**Expected errors** — subclasses of `PublicError` (`app/errors.py`). The message is written for the client and
+is returned as is. They are logged at WARNING and are not sent to Sentry.
+
+| Situation | Message |
+|---|---|
+| Protected operation without a valid access token | `Authentication required` |
+| `register` with a username or email that already exists | `Username or email is already taken` |
+| `login` with a wrong email or password | `Invalid email or password` |
+| `refreshToken` with an unknown, revoked or expired token | `Invalid or expired refresh token` |
+| Recipe does not exist (also: recipe deleted while it was being rated) | `Recipe not found` |
+| Updating or deleting someone else's recipe | `You can only modify your own recipes` |
+| `rateRecipe` with a value outside 1–5 | `Rating value must be between 1 and 5` |
+| An ID argument that is not a UUID | `Invalid ID for "<field>": expected a UUID` |
+
+The "invalid ID" message names the exact argument (`id`, `categoryId`, `ingredients[1].ingredientId`,
+`tagIds[0]`, `recipeId`) and never echoes the value that was sent.
+
+**GraphQL-level errors** — syntax errors, unknown fields, missing variables. They have no underlying exception and
+the message is generated from the client's own query, so they pass through unchanged (WARNING, no Sentry).
+
+**Unexpected errors** — bugs, database failures, anything that is not a `PublicError`. The client only gets
+`Internal server error` (the field `path` is kept); the full details are logged at ERROR and sent to Sentry, so
+internals such as SQL or file paths never leak into a response.
+
+To add a new client-visible error, subclass `PublicError` — there is no list to keep in sync.
+
 ## Contributing / branching model
 
 `main` and `develop` are protected — all work happens on `feature/<issue-number>-<slug>` branches
@@ -97,7 +127,7 @@ Active development. Core database schema, reference data seeding, complete auth 
 opaque refresh tokens), session GraphQL mutations (`register`, `login`, `refreshToken`, `logout`), auth 
 context, `currentUser` query, structured JSON logging (`structlog`), Sentry error tracking, Strawberry 
 exception masking, test coverage, read queries for recipes/dictionaries, full recipe management mutations 
-(`createRecipe`, `updateRecipe`, `deleteRecipe`), `rateRecipe` mutation with rating/comment upserts, per-request 
+(`createRecipe`, `updateRecipe`, `deleteRecipe`), `rateRecipe` mutation with rating/comment upserts and rating value validation (1–5), per-request 
 DataLoaders solving the N+1 query problem, cleaned up application startup architecture, strict GraphQL 
 exception masking via `ErrorLoggingExtension` and `PublicError`, **and explicit client-side UUID validation 
 with clean error messages (`InvalidIdError`)** are fully implemented.
