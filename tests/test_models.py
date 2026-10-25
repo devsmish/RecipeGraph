@@ -10,6 +10,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
 from db import async_session_maker
+from tests.factories import create_recipe, create_user
 from models import (
     Difficulty,
     Rating,
@@ -98,36 +99,14 @@ async def test_difficulty_enum_is_stored_lowercase():
         assert raw.scalar_one() == "easy"
 
 
-async def _make_test_recipe(session, *, username: str, email: str) -> Recipe:
-    """Shared setup for the rating tests below — a minimal valid recipe to rate."""
-    category = RecipeCategory(name=f"Category for {username}")
-    author = User(username=username, email=email, password_hash="x")
-    session.add_all([category, author])
-    await session.flush()
-
-    recipe = Recipe(
-        author_id=author.id,
-        category_id=category.id,
-        title=f"Recipe for {username}",
-        cooking_time_minutes=10,
-        difficulty=Difficulty.EASY,
-        servings=2,
-    )
-    session.add(recipe)
-    await session.flush()
-    return recipe
-
-
 async def test_one_rating_per_user_per_recipe():
     """UNIQUE(recipe_id, user_id) is what makes "changing a rating" an UPDATE,
     not a new row — this confirms the database actually enforces that.
     """
-    async with async_session_maker() as session:
-        recipe = await _make_test_recipe(session, username="erin", email="erin@example.com")
-        rater = User(username="erin_rater", email="erin_rater@example.com", password_hash="x")
-        session.add(rater)
-        await session.flush()
+    recipe = await create_recipe()
+    rater = await create_user()
 
+    async with async_session_maker() as session:
         session.add(Rating(recipe_id=recipe.id, user_id=rater.id, value=5))
         await session.commit()
 
@@ -137,12 +116,10 @@ async def test_one_rating_per_user_per_recipe():
 
 
 async def test_rating_value_must_be_between_one_and_five():
-    async with async_session_maker() as session:
-        recipe = await _make_test_recipe(session, username="frank", email="frank@example.com")
-        rater = User(username="frank_rater", email="frank_rater@example.com", password_hash="x")
-        session.add(rater)
-        await session.flush()
+    recipe = await create_recipe()
+    rater = await create_user()
 
+    async with async_session_maker() as session:
         session.add(Rating(recipe_id=recipe.id, user_id=rater.id, value=6))
         with pytest.raises(IntegrityError):
             await session.commit()
@@ -187,12 +164,10 @@ async def test_tag_name_must_be_unique():
 
 async def test_rating_comment_must_be_one_to_one():
     """Checking the 1:1 constraint for rating comments (unique=True on rating_id)."""
-    async with async_session_maker() as session:
-        recipe = await _make_test_recipe(session, username="commenter", email="commenter@example.com")
-        rater = User(username="rater_usr", email="rater_usr@example.com", password_hash="x")
-        session.add(rater)
-        await session.flush()
+    recipe = await create_recipe()
+    rater = await create_user()
 
+    async with async_session_maker() as session:
         rating = Rating(recipe_id=recipe.id, user_id=rater.id, value=5)
         session.add(rating)
         await session.flush()
