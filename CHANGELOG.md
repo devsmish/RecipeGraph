@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.9] - 2026-10-26
+
+### Added
+- `../tests/factories.py`: async factories for test data — users, recipe and ingredient categories, ingredients, tags, recipes (with ingredient lines and tags) and ratings (with optional comments) — plus `access_token_for(user)`. Defaults are complete and valid, dependencies are created on demand, and unique values come from a counter, so factories never collide.
+- Shared fixtures in `../tests/conftest.py`: `user`, `token`, `gql` (anonymous or with `token=`), `auth_gql` (authenticated as `user`) and `sentry_calls` (previously copied into three test files).
+- `../tests/test_factories.py`: unique defaults, a complete recipe from no arguments, ingredient order/amounts/units, tags, ratings with comments, and the token/`gql`/`auth_gql` fixtures.
+
+### Changed
+- `test_dataloaders.py`, `test_models.py`, `test_invalid_ids.py`, `test_rate_recipe_validation.py` and `test_error_handling.py` use the shared factories and fixtures instead of hand-built rows and local copies of the same fixtures. What they assert is unchanged.
+- No application code changes.
+
+---
+
 ## [0.2.8] - 2026-10-23
 
 ### Fixed

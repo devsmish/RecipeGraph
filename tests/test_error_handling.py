@@ -1,9 +1,7 @@
 """Tests for GraphQL error handling (error_handling.py / errors.py)."""
 
-import pytest
 import strawberry
 
-import error_handling
 from error_handling import ErrorLoggingExtension
 from errors import PublicError
 
@@ -39,13 +37,6 @@ def _messages(result) -> list[str]:
     """Messages of all errors in a result (and fail clearly if there are none)."""
     assert result.errors is not None, "expected the query to produce errors"
     return [e.message for e in result.errors]
-
-
-@pytest.fixture
-def sentry_calls(monkeypatch):
-    calls = []
-    monkeypatch.setattr(error_handling, "capture_exception", calls.append)
-    return calls
 
 
 def test_public_error_message_reaches_the_client_and_is_not_sent_to_sentry(sentry_calls):

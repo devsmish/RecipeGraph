@@ -9,27 +9,24 @@ Two kinds of checks:
 
 import uuid
 from contextlib import contextmanager
+from dataclasses import dataclass
 
 import pytest
 from sqlalchemy import event
 
-from auth import create_access_token
 from conftest import graphql_request
 from db import async_session_maker, engine
-from models import (
-    Difficulty,
-    IngredientCatalog,
-    IngredientCategory,
-    MeasurementUnit,
-    Rating,
-    RatingComment,
-    Recipe,
-    RecipeCategory,
-    RecipeIngredient,
-    Tag,
-    User,
-    recipe_tags,
+from tests.factories import (
+    access_token_for,
+    create_ingredient,
+    create_ingredient_category,
+    create_rating,
+    create_recipe,
+    create_recipe_category,
+    create_tag,
+    create_user,
 )
+from models import Difficulty, Recipe, RecipeCategory, User
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
@@ -75,70 +72,46 @@ def count_selects():
         event.remove(engine.sync_engine, "before_cursor_execute", on_execute)
 
 
-async def _seed(recipe_count: int) -> str:
-    """Create `recipe_count` fully populated recipes for one author, plus one bare recipe
-    (no ingredients, tags or ratings). Returns the author's access token."""
-    async with async_session_maker() as session:
-        author = User(username="author", email="author@example.com", password_hash="x")
-        raters = [
-            User(username=f"rater{i}", email=f"rater{i}@example.com", password_hash="x")
-            for i in range(3)
-        ]
-        categories = [RecipeCategory(name=f"Category {i}") for i in range(3)]
-        ing_categories = [IngredientCategory(name=f"IngCat {i}") for i in range(2)]
-        session.add_all([author, *raters, *categories, *ing_categories])
-        await session.flush()
+@dataclass
+class Seeded:
+    author: User
+    categories: list[RecipeCategory]
+    token: str
 
-        catalog = [
-            IngredientCatalog(name=f"Ingredient {i}", category_id=ing_categories[i % 2].id)
-            for i in range(4)
-        ]
-        tags = [Tag(name=f"tag{i}") for i in range(3)]
-        session.add_all([*catalog, *tags])
-        await session.flush()
 
-        for i in range(recipe_count):
-            recipe = Recipe(
-                author_id=author.id,
-                category_id=categories[i % 3].id,
-                title=f"Recipe {i}",
-                cooking_time_minutes=10,
-                difficulty=Difficulty.EASY,
-                servings=2,
-            )
-            session.add(recipe)
-            await session.flush()
+async def _seed(recipe_count: int) -> Seeded:
+    """`recipe_count` fully populated recipes for one author, plus one bare recipe (no
+    ingredients, tags or ratings). The token is the author's."""
+    author = await create_user(username="author", email="author@example.com")
+    raters = [await create_user(username=f"rater{i}", email=f"rater{i}@example.com") for i in range(3)]
+    categories = [await create_recipe_category(name=f"Category {i}") for i in range(3)]
+    ingredient_categories = [await create_ingredient_category(name=f"IngCat {i}") for i in range(2)]
+    catalog = [
+        await create_ingredient(name=f"Ingredient {i}", category=ingredient_categories[i % 2])
+        for i in range(4)
+    ]
+    tags = [await create_tag(name=f"tag{i}") for i in range(3)]
 
-            for position in range(3):
-                session.add(
-                    RecipeIngredient(
-                        recipe_id=recipe.id,
-                        ingredient_id=catalog[(i + position) % 4].id,
-                        amount=1,
-                        unit=MeasurementUnit.G,
-                        position=position,
-                    )
-                )
-            for tag in tags[: 1 + i % 3]:
-                await session.execute(recipe_tags.insert().values(recipe_id=recipe.id, tag_id=tag.id))
-            for rater in raters[: 1 + i % 3]:
-                rating = Rating(recipe_id=recipe.id, user_id=rater.id, value=4)
-                session.add(rating)
-                await session.flush()
-                session.add(RatingComment(rating_id=rating.id, text="tasty"))
-
-        session.add(
-            Recipe(
-                author_id=author.id,
-                category_id=categories[0].id,
-                title="Bare recipe",
-                cooking_time_minutes=5,
-                difficulty=Difficulty.HARD,
-                servings=1,
-            )
+    for i in range(recipe_count):
+        recipe = await create_recipe(
+            author=author,
+            category=categories[i % 3],
+            title=f"Recipe {i}",
+            ingredients=[catalog[(i + position) % 4] for position in range(3)],
+            tags=tags[: 1 + i % 3],
         )
-        await session.commit()
-        return create_access_token(author.id)
+        for rater in raters[: 1 + i % 3]:
+            await create_rating(recipe=recipe, user=rater, value=4, comment="tasty")
+
+    await create_recipe(
+        author=author,
+        category=categories[0],
+        title="Bare recipe",
+        cooking_time_minutes=5,
+        difficulty=Difficulty.HARD,
+        servings=1,
+    )
+    return Seeded(author=author, categories=categories, token=access_token_for(author))
 
 
 async def _run_all_fields_query(client, token: str) -> tuple[dict, int]:
@@ -149,28 +122,19 @@ async def _run_all_fields_query(client, token: str) -> tuple[dict, int]:
 
 
 async def test_query_count_does_not_grow_with_recipe_count(client):
-    token = await _seed(recipe_count=3)
+    seeded = await _seed(recipe_count=3)
+    token = seeded.token
     small_result, small_count = await _run_all_fields_query(client, token)
     assert len(small_result["data"]["myRecipes"]) == 4  # 3 + the bare one
 
     # Add 12 more recipes for the same author and ask for everything again.
-    from sqlalchemy import select
-
-    async with async_session_maker() as session:
-        author = (await session.execute(select(User).where(User.username == "author"))).scalar_one()
-        category = (await session.execute(select(RecipeCategory))).scalars().first()
-        for i in range(12):
-            session.add(
-                Recipe(
-                    author_id=author.id,
-                    category_id=category.id,
-                    title=f"Extra {i}",
-                    cooking_time_minutes=10,
-                    difficulty=Difficulty.MEDIUM,
-                    servings=2,
-                )
-            )
-        await session.commit()
+    for i in range(12):
+        await create_recipe(
+            author=seeded.author,
+            category=seeded.categories[0],
+            title=f"Extra {i}",
+            difficulty=Difficulty.MEDIUM,
+        )
 
     large_result, large_count = await _run_all_fields_query(client, token)
     assert len(large_result["data"]["myRecipes"]) == 16
@@ -183,8 +147,8 @@ async def test_query_count_does_not_grow_with_recipe_count(client):
 
 
 async def test_nested_data_is_correct_including_empty_collections(client):
-    token = await _seed(recipe_count=2)
-    result, _ = await _run_all_fields_query(client, token)
+    seeded = await _seed(recipe_count=2)
+    result, _ = await _run_all_fields_query(client, seeded.token)
     recipes = {r["title"]: r for r in result["data"]["myRecipes"]}
 
     full = recipes["Recipe 1"]

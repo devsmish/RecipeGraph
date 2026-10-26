@@ -9,33 +9,14 @@ import uuid
 import pytest
 from sqlalchemy import func, select
 
-import error_handling
-from auth import create_access_token
-from conftest import graphql_request
 from db import async_session_maker
-from models import Recipe, User
+from models import Recipe
 
 ZERO_UUID = "00000000-0000-0000-0000-000000000000"  # well-formed, but nothing has this id
 
 
 def invalid(field: str) -> str:
     return f'Invalid ID for "{field}": expected a UUID'
-
-
-@pytest.fixture
-async def token():
-    async with async_session_maker() as session:
-        user = User(username="idtester", email="idtester@example.com", password_hash="x")
-        session.add(user)
-        await session.commit()
-        return create_access_token(user.id)
-
-
-@pytest.fixture
-def sentry_calls(monkeypatch):
-    calls = []
-    monkeypatch.setattr(error_handling, "capture_exception", calls.append)
-    return calls
 
 
 CREATE = """
@@ -133,58 +114,43 @@ CASES = [
 
 @pytest.mark.parametrize("query, variables, expected_message", CASES)
 async def test_malformed_id_returns_a_clear_message(
-    client, token, sentry_calls, query, variables, expected_message
+    auth_gql, sentry_calls, query, variables, expected_message
 ):
-    result = await graphql_request(client, query, variables, token=token)
+    result = await auth_gql(query, variables)
 
     assert [e["message"] for e in result["errors"]] == [expected_message]
     assert "Internal server error" not in str(result)
     assert sentry_calls == []  # a client mistake, not a server bug
 
 
-async def test_create_recipe_with_a_bad_ingredient_id_writes_nothing(client, token, sentry_calls):
-    result = await graphql_request(
-        client, CREATE, {"input": create_input(ingredients=two_ingredients_second_bad())}, token=token
-    )
+async def test_create_recipe_with_a_bad_ingredient_id_writes_nothing(auth_gql, sentry_calls):
+    result = await auth_gql(CREATE, {"input": create_input(ingredients=two_ingredients_second_bad())})
 
     assert result["errors"][0]["message"] == invalid("ingredients[1].ingredientId")
     async with async_session_maker() as session:
         assert (await session.execute(select(func.count()).select_from(Recipe))).scalar_one() == 0
 
 
-async def test_malformed_id_message_does_not_echo_the_value(client, token, sentry_calls):
-    result = await graphql_request(
-        client, "query($id: ID!) { recipe(id: $id) { id } }", {"id": "<script>alert(1)</script>"},
-        token=token
-    )
+async def test_malformed_id_message_does_not_echo_the_value(auth_gql, sentry_calls):
+    result = await auth_gql("query($id: ID!) { recipe(id: $id) { id } }", {"id": "<script>alert(1)</script>"})
 
     assert "script" not in str(result)
 
 
-async def test_well_formed_but_unknown_ids_behave_as_before(client, token, sentry_calls):
-    unknown_recipe = await graphql_request(
-        client, "query($id: ID!) { recipe(id: $id) { id } }", {"id": ZERO_UUID}, token=token
-    )
+async def test_well_formed_but_unknown_ids_behave_as_before(auth_gql, sentry_calls):
+    unknown_recipe = await auth_gql("query($id: ID!) { recipe(id: $id) { id } }", {"id": ZERO_UUID})
     assert unknown_recipe["errors"][0]["message"] == "Recipe not found"
 
-    rate_unknown = await graphql_request(
-        client,
-        "mutation($input: RateRecipeInput!) { rateRecipe(input: $input) { value } }",
-        {"input": {"recipeId": ZERO_UUID, "value": 5}},
-        token=token,
-    )
+    rate_unknown = await auth_gql("mutation($input: RateRecipeInput!) { rateRecipe(input: $input) { value } }",
+        {"input": {"recipeId": ZERO_UUID, "value": 5}})
     assert rate_unknown["errors"][0]["message"] == "Recipe not found"
 
-    delete_unknown = await graphql_request(
-        client, "mutation($id: ID!) { deleteRecipe(id: $id) }", {"id": ZERO_UUID}, token=token
-    )
+    delete_unknown = await auth_gql("mutation($id: ID!) { deleteRecipe(id: $id) }", {"id": ZERO_UUID})
     assert delete_unknown["data"]["deleteRecipe"] is False
     assert sentry_calls == []
 
 
-async def test_uppercase_and_hyphenless_ids_are_accepted(client, token, sentry_calls):
+async def test_uppercase_and_hyphenless_ids_are_accepted(auth_gql, sentry_calls):
     for form in (ZERO_UUID.upper(), ZERO_UUID.replace("-", "")):
-        result = await graphql_request(
-            client, "query($id: ID!) { recipe(id: $id) { id } }", {"id": form}, token=token
-        )
+        result = await auth_gql("query($id: ID!) { recipe(id: $id) { id } }", {"id": form})
         assert result["errors"][0]["message"] == "Recipe not found"

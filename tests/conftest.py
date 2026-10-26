@@ -17,7 +17,9 @@ from pytest_asyncio import is_async_test  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
+import error_handling  # noqa: E402
 from db import DATABASE_URL, engine  # noqa: E402
+from tests.factories import access_token_for, create_user  # noqa: E402
 from models import Base  # noqa: E402
 
 # Tests TRUNCATE every table between runs (see _clean_tables below) — a real safety
@@ -88,3 +90,50 @@ async def graphql_request(client, query: str, variables: dict | None = None, tok
         "/graphql", json={"query": query, "variables": variables or {}}, headers=headers
     )
     return response.json()
+
+
+@pytest_asyncio.fixture
+async def user():
+    """A registered user (see factories.create_user for unique, ready-made defaults)."""
+    return await create_user()
+
+
+@pytest.fixture
+def token(user):
+    """A valid access token for the `user` fixture."""
+    return access_token_for(user)
+
+
+@pytest.fixture
+def gql(client):
+    """Run a GraphQL operation as an anonymous caller, or with `token=` as that user:
+
+        result = await gql("query { hello }")
+        result = await gql(MUTATION, {"input": {...}}, token=access_token_for(other_user))
+    """
+
+    async def run(query: str, variables: dict | None = None, *, token: str | None = None):
+        return await graphql_request(client, query, variables, token=token)
+
+    return run
+
+
+@pytest.fixture
+def auth_gql(gql, token):
+    """Like `gql`, but always authenticated as the `user` fixture:
+
+        result = await auth_gql(MUTATION, {"input": {...}})
+    """
+
+    async def run(query: str, variables: dict | None = None):
+        return await gql(query, variables, token=token)
+
+    return run
+
+
+@pytest.fixture
+def sentry_calls(monkeypatch):
+    """Record exceptions the error handler would send to Sentry, instead of sending them."""
+    calls = []
+    monkeypatch.setattr(error_handling, "capture_exception", calls.append)
+    return calls
