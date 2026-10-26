@@ -86,6 +86,24 @@ settings come from the container's environment. `tests/` and `pytest.ini` are mo
 by `docker-compose.yml`; after changing the compose file recreate the container with
 `docker compose up -d api`.
 
+#### Writing tests
+
+Test data comes from async factories in `tests/factories.py`. Each one writes its row to the test database,
+commits and returns the model. Anything you don't pass gets a valid default, and the objects it depends on are
+created for you, so a test spells out only what it cares about:
+
+```python
+async def test_my_recipes(auth_gql, user):
+    await create_recipe(author=user, title="Soup", ingredients=[tomato], tags=[vegan])
+
+    result = await auth_gql("query { myRecipes { title } }")
+```
+
+Available factories: `create_user`, `create_recipe_category`, `create_ingredient_category`, `create_ingredient`,
+`create_tag`, `create_recipe` (with ingredient lines and tags), `create_rating` (with an optional comment) and
+`access_token_for(user)`. Fixtures from `tests/conftest.py`: `user`, `token`, `gql` (anonymous, or `token=` for
+another user), `auth_gql` (authenticated as `user`), `client` and `sentry_calls`.
+
 ## API errors
 
 GraphQL errors fall into three groups, and the group decides what the client sees:
@@ -126,8 +144,9 @@ merged into `develop` via PR, releases go through `release/vX.Y.Z`.
 Active development. Core database schema, reference data seeding, complete auth system (Argon2id, JWT, 
 opaque refresh tokens), session GraphQL mutations (`register`, `login`, `refreshToken`, `logout`), auth 
 context, `currentUser` query, structured JSON logging (`structlog`), Sentry error tracking, Strawberry 
-exception masking, test coverage, read queries for recipes/dictionaries, full recipe management mutations 
-(`createRecipe`, `updateRecipe`, `deleteRecipe`), `rateRecipe` mutation with rating/comment upserts and rating value validation (1–5), per-request 
+exception masking, test coverage with shared test factories and fixtures, read queries for 
+recipes/dictionaries, full recipe management mutations  (`createRecipe`, `updateRecipe`, `deleteRecipe`), 
+`rateRecipe` mutation with rating/comment upserts and rating value validation (1–5), per-request 
 DataLoaders solving the N+1 query problem, cleaned up application startup architecture, strict GraphQL 
 exception masking via `ErrorLoggingExtension` and `PublicError`, **and explicit client-side UUID validation 
 with clean error messages (`InvalidIdError`)** are fully implemented.
