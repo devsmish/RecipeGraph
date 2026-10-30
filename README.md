@@ -121,6 +121,9 @@ is returned as is. They are logged at WARNING and are not sent to Sentry.
 | Updating or deleting someone else's recipe | `You can only modify your own recipes` |
 | `rateRecipe` with a value outside 1–5 | `Rating value must be between 1 and 5` |
 | An ID argument that is not a UUID | `Invalid ID for "<field>": expected a UUID` |
+| `createRecipe` / `updateRecipe` with a category that does not exist | `Recipe category not found` |
+| `createRecipe` / `updateRecipe` with an ingredient that does not exist | `Ingredient not found` |
+| `createRecipe` / `updateRecipe` with a tag that does not exist | `Tag not found` |
 
 The "invalid ID" message names the exact argument (`id`, `categoryId`, `ingredients[1].ingredientId`,
 `tagIds[0]`, `recipeId`) and never echoes the value that was sent.

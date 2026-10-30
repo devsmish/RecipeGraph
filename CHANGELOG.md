@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.10] - 2026-10-30
+
+### Fixed
+- **`createRecipe` / `updateRecipe` with a well-formed but non-existent category, ingredient or tag ID returned "Internal server error"** (a foreign key violation, reported to Sentry) although it is a client mistake. Existence is now checked before anything is written: `Recipe category not found`, `Ingredient not found`, `Tag not found` (new `PublicError` subclasses). In `updateRecipe` the check runs after the owner check and before any field is changed, so a failed update changes nothing.
+- **A tag listed twice in `tagIds`** violated the (recipe, tag) primary key and returned "Internal server error". Duplicates are now ignored.
+
+### Added
+- `../tests/test_recipe_queries.py`: `recipe(id)` with every nested relation and empty collections, public access, `Recipe not found`; `myRecipes` (only the caller's, empty, requires authentication, invalid token treated as anonymous); dictionary queries (name ordering, empty data, no authentication, ingredient search).
+- `../tests/test_recipe_mutations.py`: `createRecipe` (ingredients and tags stored, author taken from the token, unknown references write nothing, duplicate tag, same ingredient on two lines); `updateRecipe` (partial update, `description` omitted vs explicit `null`, ingredients/tags replaced not merged, owner check, all-or-nothing); `deleteRecipe` (owner, non-owner, twice, unknown id, dependent rows removed while shared dictionaries stay).
+
+### Known gaps (separate tasks)
+- `updateRecipe` with an explicit `null` for `title`, `cookingTimeMinutes`, `servings` or `difficulty` returns "Internal server error" (NOT NULL violation).
+- Ingredient search does not escape `%` and `_`.
+- `myRecipes` has no defined order.
+
+---
+
 ## [0.2.9] - 2026-10-26
 
 ### Added
