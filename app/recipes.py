@@ -287,6 +287,35 @@ class NotRecipeOwnerError(PublicError):
         super().__init__("You can only modify your own recipes")
 
 
+class CategoryNotFoundError(PublicError):
+    def __init__(self) -> None:
+        super().__init__("Recipe category not found")
+
+
+class IngredientNotFoundError(PublicError):
+    def __init__(self) -> None:
+        super().__init__("Ingredient not found")
+
+
+class TagNotFoundError(PublicError):
+    def __init__(self) -> None:
+        super().__init__("Tag not found")
+
+
+async def _ensure_all_exist(session, model, ids: list[uuid.UUID], error: type[PublicError]) -> None:
+    """Raise `error` unless every id refers to an existing row of `model`.
+
+    A well-formed ID that doesn't exist would otherwise only be noticed by the database as a
+    foreign key violation, which reaches the client as "Internal server error".
+    """
+    wanted = set(ids)
+    if not wanted:
+        return
+    found = set((await session.execute(select(model.id).where(model.id.in_(wanted)))).scalars())
+    if wanted - found:
+        raise error()
+
+
 @strawberry.input(description="One ingredient line: which ingredient, how much, in what unit.")
 class RecipeIngredientInput:
     ingredient_id: strawberry.ID
@@ -332,7 +361,9 @@ def _parse_ingredient_lines(
 
 
 def _parse_tag_ids(tag_ids: list[strawberry.ID]) -> list[uuid.UUID]:
-    return [parse_uuid(tag_id, f"tagIds[{index}]") for index, tag_id in enumerate(tag_ids)]
+    parsed = [parse_uuid(tag_id, f"tagIds[{index}]") for index, tag_id in enumerate(tag_ids)]
+    # A tag can be attached to a recipe only once; listing it twice is harmless, not an error.
+    return list(dict.fromkeys(parsed))
 
 
 async def _replace_ingredients(
@@ -365,6 +396,12 @@ async def resolve_create_recipe(user_id: uuid.UUID, input: CreateRecipeInput) ->
     tag_ids = _parse_tag_ids(list(input.tag_ids))
 
     async with async_session_maker() as session:
+        await _ensure_all_exist(session, RecipeCategoryModel, [category_id], CategoryNotFoundError)
+        await _ensure_all_exist(
+            session, IngredientCatalogModel, [ingredient_id for ingredient_id, _ in ingredient_lines], IngredientNotFoundError
+        )
+        await _ensure_all_exist(session, TagModel, tag_ids, TagNotFoundError)
+
         recipe = RecipeModel(
             author_id=user_id,
             category_id=category_id,
@@ -402,6 +439,18 @@ async def resolve_update_recipe(user_id: uuid.UUID, recipe_id: strawberry.ID, in
             raise RecipeNotFoundError()
         if recipe.author_id != user_id:
             raise NotRecipeOwnerError()
+
+        if category_id is not None:
+            await _ensure_all_exist(session, RecipeCategoryModel, [category_id], CategoryNotFoundError)
+        if ingredient_lines is not None:
+            await _ensure_all_exist(
+                session,
+                IngredientCatalogModel,
+                [ingredient_id for ingredient_id, _ in ingredient_lines],
+                IngredientNotFoundError,
+            )
+        if tag_ids is not None:
+            await _ensure_all_exist(session, TagModel, tag_ids, TagNotFoundError)
 
         # strawberry.UNSET distinguishes "field not provided in the mutation" from
         # "field explicitly set to null" — the latter matters for `description`,
@@ -523,7 +572,7 @@ async def resolve_rate_recipe(user_id: uuid.UUID, input: RateRecipeInput) -> Rat
             await session.rollback()
             mapped = _map_rating_integrity_error(exc)
             if mapped is None:
-                raise
+                raise  # unexpected: let the error handler mask, log and report it
             raise mapped from exc
 
         if input.comment_text is not None:
