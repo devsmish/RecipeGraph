@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.11] - 2026-11-10
+
+### Added
+- `../tests/test_rate_recipe.py`: API-level tests for `rateRecipe` — first rating creates a row for the caller; rating again updates the same row (same id and `createdAt`, one row); an existing rating is updated; one user rating several recipes; a rejected update leaves the existing rating and comment untouched; `ratingsCount` / `avgRating` with several users and after a rating changes (and no average for an unrated recipe); comments (created with the rating, replaced in place, added later, kept when the field is left out, an explicit `null` also leaves it unchanged, never mixed between users); unknown recipe and missing or invalid token. Value-range validation stays in `test_rate_recipe_validation.py`.
+- No application code changes.
+
+### Known gap (separate task)
+- A comment cannot be removed through the API: `commentText: null` means "leave it as is", same as omitting the field.
+
+---
+
 ## [0.2.10] - 2026-10-30
 
 ### Fixed
