@@ -1,0 +1,66 @@
+name: CI
+
+# Runs on every pull request into develop and main. Make the "test" job a required status check
+# in the branch protection rules of both branches (Settings -> Branches), otherwise it is only advisory.
+on:
+  pull_request:
+    branches: [develop, main]
+
+# A new push to the same pull request cancels the run that is still going for the old commit.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # The same PostgreSQL version as docker-compose.yml. The database name contains "test" on
+    # purpose: tests/conftest.py refuses to clean any database whose name doesn't.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: recipes_test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci_user -d recipes_test_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      POSTGRES_USER: ci_user
+      POSTGRES_PASSWORD: ci_password
+      POSTGRES_DB: recipes_test_db
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      JWT_SECRET: ci-only-secret-not-used-anywhere-else
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Tests (pytest)
+        run: pytest -v
