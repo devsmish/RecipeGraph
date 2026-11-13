@@ -86,6 +86,23 @@ settings come from the container's environment. `tests/` and `pytest.ini` are mo
 by `docker-compose.yml`; after changing the compose file recreate the container with
 `docker compose up -d api`.
 
+### Lint
+
+[ruff](https://docs.astral.sh/ruff/) checks the code; its configuration is in `ruff.toml`. From the repository
+root:
+
+```bash
+pip install -r requirements-dev.txt
+ruff check .
+```
+
+### Continuous integration
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request into `develop` and `main`: it starts
+PostgreSQL 16, installs `requirements-dev.txt`, then runs `ruff check .` and `pytest`. Run both locally before
+opening a pull request. To make the `test` check block merging, require it in the branch protection rules
+(Settings → Branches).
+
 #### Writing tests
 
 Test data comes from async factories in `tests/factories.py`. Each one writes its row to the test database,
@@ -147,12 +164,13 @@ merged into `develop` via PR, releases go through `release/vX.Y.Z`.
 Active development. Core database schema, reference data seeding, complete auth system (Argon2id, JWT, 
 opaque refresh tokens), session GraphQL mutations (`register`, `login`, `refreshToken`, `logout`), auth 
 context, `currentUser` query, structured JSON logging (`structlog`), Sentry error tracking, Strawberry 
-exception masking, test coverage with shared test factories and fixtures, read queries for 
-recipes/dictionaries, full recipe management mutations  (`createRecipe`, `updateRecipe`, `deleteRecipe`), 
-`rateRecipe` mutation with rating/comment upserts and rating value validation (1–5), per-request 
-DataLoaders solving the N+1 query problem, cleaned up application startup architecture, strict GraphQL 
-exception masking via `ErrorLoggingExtension` and `PublicError`, **and explicit client-side UUID validation 
-with clean error messages (`InvalidIdError`)** are fully implemented.
+exception masking, test coverage with shared test factories and fixtures, continuous integration (GitHub 
+Actions: ruff + pytest), read queries for recipes/dictionaries, full recipe management 
+mutations  (`createRecipe`, `updateRecipe`, `deleteRecipe`), `rateRecipe` mutation with rating/comment 
+upserts and rating value validation (1–5), per-request DataLoaders solving the N+1 query problem, cleaned 
+up application startup architecture, strict GraphQL exception masking via `ErrorLoggingExtension` and 
+`PublicError`, **and explicit client-side UUID validation with clean error messages (`InvalidIdError`)** 
+are fully implemented.
 
 ## License
 

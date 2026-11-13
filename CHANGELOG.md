@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.12] - 2026-11-13
+
+### Added
+- `../.github/workflows/ci.yml`: GitHub Actions workflow for every pull request into `develop` and `main` — PostgreSQL 16 service (database `recipes_test_db`), Python 3.12 with pip cache, `ruff check .` and `pytest -v`. Superseded runs of the same pull request are cancelled.
+- `../ruff.toml`: linter configuration (line length 120, rules `E`, `F`, `W`, `B`; Alembic-generated migrations excluded).
+- `../requirements-dev.txt`: development and CI tools (`ruff==0.8.4`) on top of `requirements.txt`.
+
+### Changed
+- Two lines wrapped (`app/recipes.py`, `tests/test_recipe_mutations.py`) to satisfy the line-length rule. No behavior change.
+
+### Manual step
+- Mark the `test` check as required in the branch protection rules of `develop` and `main` (Settings → Branches); until then CI is advisory.
+
+---
+
 ## [0.2.11] - 2026-11-10
 
 ### Added
