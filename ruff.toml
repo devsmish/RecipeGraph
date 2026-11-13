@@ -1,0 +1,11 @@
+# Linter configuration (ruff). CI runs `ruff check .`; run it locally the same way.
+
+line-length = 120
+target-version = "py312"  # matches the python:3.12 image in the Dockerfile
+
+# Alembic generates these files; reformatting them by hand would only add noise.
+extend-exclude = ["app/migrations/versions"]
+
+[lint]
+# E/W: pycodestyle, F: pyflakes (unused imports and names, undefined names), B: bugbear (likely bugs).
+select = ["E", "F", "W", "B"]

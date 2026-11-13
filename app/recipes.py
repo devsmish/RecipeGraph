@@ -398,7 +398,10 @@ async def resolve_create_recipe(user_id: uuid.UUID, input: CreateRecipeInput) ->
     async with async_session_maker() as session:
         await _ensure_all_exist(session, RecipeCategoryModel, [category_id], CategoryNotFoundError)
         await _ensure_all_exist(
-            session, IngredientCatalogModel, [ingredient_id for ingredient_id, _ in ingredient_lines], IngredientNotFoundError
+            session,
+            IngredientCatalogModel,
+            [ingredient_id for ingredient_id, _ in ingredient_lines],
+            IngredientNotFoundError,
         )
         await _ensure_all_exist(session, TagModel, tag_ids, TagNotFoundError)
 
