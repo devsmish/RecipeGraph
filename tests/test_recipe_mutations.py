@@ -36,7 +36,10 @@ RECIPE_FIELDS = """
     tags { name }
 """
 CREATE = f"mutation($input: CreateRecipeInput!) {{ createRecipe(input: $input) {{ {RECIPE_FIELDS} }} }}"
-UPDATE = f"mutation($id: ID!, $input: UpdateRecipeInput!) {{ updateRecipe(id: $id, input: $input) {{ {RECIPE_FIELDS} }} }}"
+UPDATE = (
+    "mutation($id: ID!, $input: UpdateRecipeInput!) "
+    f"{{ updateRecipe(id: $id, input: $input) {{ {RECIPE_FIELDS} }} }}"
+)
 DELETE = "mutation($id: ID!) { deleteRecipe(id: $id) }"
 READ = f"query($id: ID!) {{ recipe(id: $id) {{ {RECIPE_FIELDS} }} }}"
 
