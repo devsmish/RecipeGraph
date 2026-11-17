@@ -1,0 +1,22 @@
+# Line endings: LF inside the repository, whatever the contributor's OS or Git settings.
+# `text=auto` lets Git detect text files and normalise them; the working tree keeps the
+# platform's native endings (CRLF on Windows) unless a rule below says otherwise.
+* text=auto
+
+# Files that are read inside Linux containers or by Linux CI stay LF even in a Windows
+# working tree (a stray CR breaks shell scripts and can end up inside SQL or config values).
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.sql text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.ini text eol=lf
+*.toml text eol=lf
+requirements*.txt text eol=lf
+
+# Never touch binary files.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.zip binary
