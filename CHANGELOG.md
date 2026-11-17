@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.13] - 2026-11-17
+
+### Added
+- `../ROADMAP.md` (new in the repository): the plan by theme, with the real task numbers, issue numbers and status of every v0.1 and v0.2 task. It replaces an outdated draft that described a different release scheme: every task is released on its own and **the git tag is the task label** (`v0.2.8` ships as tag `v0.2.8`). Dependencies on the mutations task now point to `v0.2.1`.
+- `.gitattributes`: LF inside the repository whatever the contributor's OS or Git settings (`text=auto`); the working tree keeps native endings, except files read by Linux containers and CI (`*.sh`, `Dockerfile`, `*.sql`, `*.yml`, `*.ini`, `*.toml`, `requirements*.txt`), which are always LF.
+
+### Changed
+- `../requirements.txt` re-encoded from UTF-16 to UTF-8. The package list is identical.
+- `README.md`: "Project status" is now a short list per theme linking to `CHANGELOG.md` and `../ROADMAP.md`; "Writing tests" moved under "Tests" (it had ended up under "Continuous integration"); a note for existing Postgres data directories created before `postgres/init.sql` created `recipes_test_db`; GitHub Actions added to the tech stack.
+- `CHANGELOG.md`: file paths are written relative to the repository root (the `../` prefix in some entries is gone).
+
+### Fixed
+- Typo in a comment in `../.env.example`: "Ащк Linux/macOS:" (the word "For" typed in the Russian keyboard layout) is now "For Linux/macOS:".
+
+No application code changes.
+
+---
+
 ## [0.2.12] - 2026-11-13
 
 ### Added

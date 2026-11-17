@@ -38,7 +38,7 @@ exercise the parts of a real search system that CRUD tutorials skip:
 | Auth         | Argon2id/bcrypt password hashing, JWT access + refresh tokens |
 | Monitoring   | Prometheus, Grafana, postgres_exporter, pgHero                |
 | Logging      | Sentry, structlog                                             |
-| Infra        | Docker Compose                                                |
+| Infra        | Docker Compose, GitHub Actions (CI)                           |
 
 ## Getting started
 
@@ -86,22 +86,13 @@ settings come from the container's environment. `tests/` and `pytest.ini` are mo
 by `docker-compose.yml`; after changing the compose file recreate the container with
 `docker compose up -d api`.
 
-### Lint
-
-[ruff](https://docs.astral.sh/ruff/) checks the code; its configuration is in `ruff.toml`. From the repository
-root:
+If your Postgres data directory was created before `postgres/init.sql` started creating `recipes_test_db`,
+the init script will not run again for it and the tests fail with `database "recipes_test_db" does not exist`.
+Create the database once by hand:
 
 ```bash
-pip install -r requirements-dev.txt
-ruff check .
+docker compose exec postgres sh -c 'createdb -U "$POSTGRES_USER" -O "$POSTGRES_USER" recipes_test_db'
 ```
-
-### Continuous integration
-
-GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request into `develop` and `main`: it starts
-PostgreSQL 16, installs `requirements-dev.txt`, then runs `ruff check .` and `pytest`. Run both locally before
-opening a pull request. To make the `test` check block merging, require it in the branch protection rules
-(Settings → Branches).
 
 #### Writing tests
 
@@ -120,6 +111,23 @@ Available factories: `create_user`, `create_recipe_category`, `create_ingredient
 `create_tag`, `create_recipe` (with ingredient lines and tags), `create_rating` (with an optional comment) and
 `access_token_for(user)`. Fixtures from `tests/conftest.py`: `user`, `token`, `gql` (anonymous, or `token=` for
 another user), `auth_gql` (authenticated as `user`), `client` and `sentry_calls`.
+
+### Lint
+
+[ruff](https://docs.astral.sh/ruff/) checks the code; its configuration is in `ruff.toml`. From the repository
+root:
+
+```bash
+pip install -r requirements-dev.txt
+ruff check .
+```
+
+### Continuous integration
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request into `develop` and `main`: it starts
+PostgreSQL 16, installs `requirements-dev.txt`, then runs `ruff check .` and `pytest`. Run both locally before
+opening a pull request. To make the `test` check block merging, require it in the branch protection rules
+(Settings → Branches).
 
 ## API errors
 
@@ -161,16 +169,20 @@ merged into `develop` via PR, releases go through `release/vX.Y.Z`.
 
 ## Project status
 
-Active development. Core database schema, reference data seeding, complete auth system (Argon2id, JWT, 
-opaque refresh tokens), session GraphQL mutations (`register`, `login`, `refreshToken`, `logout`), auth 
-context, `currentUser` query, structured JSON logging (`structlog`), Sentry error tracking, Strawberry 
-exception masking, test coverage with shared test factories and fixtures, continuous integration (GitHub 
-Actions: ruff + pytest), read queries for recipes/dictionaries, full recipe management 
-mutations  (`createRecipe`, `updateRecipe`, `deleteRecipe`), `rateRecipe` mutation with rating/comment 
-upserts and rating value validation (1–5), per-request DataLoaders solving the N+1 query problem, cleaned 
-up application startup architecture, strict GraphQL exception masking via `ErrorLoggingExtension` and 
-`PublicError`, **and explicit client-side UUID validation with clean error messages (`InvalidIdError`)** 
-are fully implemented.
+Active development. What has shipped is recorded release by release in [CHANGELOG.md](CHANGELOG.md); what is
+planned next is in [ROADMAP.md](../ROADMAP.md).
+
+- **Foundation & auth (v0.1.x, done)** — database schema and migrations, reference data seeding, Argon2id
+  password hashing with JWT access tokens and opaque refresh tokens, `register` / `login` / `refreshToken` /
+  `logout`, per-request auth context and `currentUser`, structured JSON logging (`structlog`), Sentry, and a
+  test suite for all of it
+- **Core GraphQL CRUD (v0.2.x, in progress)** — recipe and dictionary queries, `createRecipe` / `updateRecipe` /
+  `deleteRecipe`, `rateRecipe` with rating validation and comment upserts, per-request DataLoaders (no N+1),
+  error masking with `PublicError` (see [API errors](#api-errors)), clear errors for malformed IDs and unknown
+  references, shared test factories and fixtures, continuous integration (ruff + pytest); the remaining
+  tasks are tests cleanup and refactoring into packages
+- **Planned** — Elasticsearch search (v0.3), observability dashboards (v0.4), Kafka event-driven index sync
+  (v0.5), reverse proxy (v0.6)
 
 ## License
 
