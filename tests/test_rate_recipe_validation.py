@@ -11,9 +11,9 @@ import pytest
 from sqlalchemy import delete, event, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import recipes
+from recipes import ratings
 from db import async_session_maker, engine
-from tests.factories import create_recipe
+from factories import create_recipe
 from models import Rating, Recipe
 
 RATE = "mutation($input: RateRecipeInput!) { rateRecipe(input: $input) { value } }"
@@ -91,7 +91,7 @@ async def test_check_constraint_violation_is_still_reported_as_an_invalid_value(
 ):
     # Widen the resolver's own range so 6 gets past it and reaches the database, whose CHECK
     # constraint (1..5) is the safety net.
-    monkeypatch.setattr(recipes, "MAX_RATING_VALUE", 10)
+    monkeypatch.setattr(ratings, "MAX_RATING_VALUE", 10)
 
     result = await auth_gql(RATE, {"input": {"recipeId": str(recipe.id), "value": 6}})
 

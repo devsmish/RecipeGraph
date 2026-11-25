@@ -135,7 +135,7 @@ async def test_real_api_keeps_public_errors_and_masks_unexpected_ones(client, mo
     def broken_session_maker():
         raise RuntimeError("connection to server at db:5432 failed, password=hunter2")
 
-    monkeypatch.setattr("recipes.async_session_maker", broken_session_maker)
+    monkeypatch.setattr("recipes.service.async_session_maker", broken_session_maker)
     broken = await graphql_request(client, "query { recipeCategories { id } }")
 
     assert [e["message"] for e in broken["errors"]] == ["Internal server error"]
