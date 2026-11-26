@@ -1,6 +1,6 @@
 # RecipeGraph — Roadmap
 
-What has already shipped is recorded in [CHANGELOG.md](recipegraph-v0.2.13/CHANGELOG.md); this file is the plan.
+What has already shipped is recorded in [CHANGELOG.md](CHANGELOG.md); this file is the plan.
 
 ## Versioning convention
 
@@ -18,7 +18,7 @@ in the tables below for traceability.
 
 Every task is released on its own: when its PR is merged into `develop`, a `release/vX.Y.Z` branch is
 merged into `main` and tagged. **The tag is the task label** — task `v0.2.8` ships as git tag `v0.2.8`,
-and its entry in [CHANGELOG.md](recipegraph-v0.2.13/CHANGELOG.md) is headed `[0.2.8]`. There is no separate "release number"
+and its entry in [CHANGELOG.md](CHANGELOG.md) is headed `[0.2.8]`. There is no separate "release number"
 to translate to.
 
 The project started with `v0.1.0` (project scaffolding, issue #5). Task labels of a theme are assigned in
@@ -75,8 +75,8 @@ theme is hardening: tests, CI, cleanup and refactoring before search is built on
 | **v0.2.10** | Tests for recipe queries and CRUD mutations (and clear errors for unknown category, ingredient and tag IDs) | v0.2.9 | #58 | Released |
 | **v0.2.11** | Tests for `rateRecipe` | v0.2.8, v0.2.9 | #59 | Released |
 | **v0.2.12** | CI: run `ruff` and `pytest` on every pull request | — | #60 | Released |
-| **v0.2.13** | Documentation and repository housekeeping (this file, line endings, UTF-8 `requirements.txt`) | — | #61 | In progress |
-| **v0.2.14** | Refactor: split `recipes.py` into a package | v0.2.10–v0.2.12 | #62 | Planned |
+| **v0.2.13** | Documentation and repository housekeeping (this file, line endings, UTF-8 `requirements.txt`) | — | #61 | Released |
+| **v0.2.14** | Refactor: split `recipes.py` into a package | v0.2.10–v0.2.12 | #62 | Released |
 | **v0.2.15** | Refactor: split auth code into a package | v0.2.14 | #63 | Planned |
 | **v0.2.16** | Typed GraphQL context and central configuration (`config.py`) | v0.2.14, v0.2.15 | #64 | Planned |
 | **v0.2.17** | `updateRecipe`: reject an explicit `null` for required fields | v0.2.14 | | Planned |
