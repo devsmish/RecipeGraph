@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.14] - 2026-11-25
+
+### Changed
+- `app/recipes.py` (about 600 lines) is now the package `app/recipes/`: `enums.py` (`Difficulty`, `MeasurementUnit`), `types.py` (output types), `inputs.py` (input types), `errors.py` (client-facing errors and the rating scale), `references.py` (validation of the IDs a recipe refers to), `service.py` (queries and create/update/delete), `ratings.py` (`rateRecipe`), and the thin GraphQL fields in `queries.py` / `mutations.py`. No module is longer than about 200 lines. `recipes/__init__.py` re-exports the public names, so `from recipes import ...` keeps working.
+- `schema.py`: `Query` and `Mutation` inherit `RecipeQuery` / `RecipeMutation` instead of declaring the recipe fields themselves.
+- `_rating_from_model` is now the public `rating_from_model` (`recipes/types.py`); the helpers of `createRecipe` / `updateRecipe` lost their leading underscore (`recipes/references.py`).
+- Tests: only two `monkeypatch` targets changed (`recipes.service.async_session_maker`, `recipes.ratings.MAX_RATING_VALUE`).
+
+No behavior change: the exported GraphQL schema is identical (field order inside `Query` and `Mutation` differs, which has no meaning in GraphQL), all 151 tests pass.
+
+---
+
 ## [0.2.13] - 2026-11-17
 
 ### Added

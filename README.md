@@ -129,6 +129,25 @@ PostgreSQL 16, installs `requirements-dev.txt`, then runs `ruff check .` and `py
 opening a pull request. To make the `test` check block merging, require it in the branch protection rules
 (Settings → Branches).
 
+## Code layout
+
+```
+app/
+  main.py              FastAPI application; mounts the GraphQL endpoint
+  schema.py            root Query and Mutation types (composed from the parts below) and the auth mutations
+  recipes/             the recipe domain: types, inputs, errors, service, ratings, queries and mutations
+                       (see the docstring in recipes/__init__.py for the module map)
+  context.py           per-request GraphQL context: the current user and the DataLoaders
+  loaders.py           DataLoaders: batched lookups behind nested fields
+  auth.py              password hashing and tokens
+  errors.py            PublicError, the base class of client-facing errors
+  error_handling.py    the extension that masks unexpected errors
+  ids.py               parse_uuid: client-supplied IDs
+  models.py            SQLAlchemy models; migrations/ holds the Alembic migrations, seed.py the reference data
+  db.py, logging_config.py, sentry_config.py
+tests/                 pytest suite; factories.py and conftest.py hold the shared helpers
+```
+
 ## API errors
 
 GraphQL errors fall into three groups, and the group decides what the client sees:
@@ -170,7 +189,7 @@ merged into `develop` via PR, releases go through `release/vX.Y.Z`.
 ## Project status
 
 Active development. What has shipped is recorded release by release in [CHANGELOG.md](CHANGELOG.md); what is
-planned next is in [ROADMAP.md](../ROADMAP.md).
+planned next is in [ROADMAP.md](ROADMAP.md).
 
 - **Foundation & auth (v0.1.x, done)** — database schema and migrations, reference data seeding, Argon2id
   password hashing with JWT access tokens and opaque refresh tokens, `register` / `login` / `refreshToken` /
@@ -179,8 +198,9 @@ planned next is in [ROADMAP.md](../ROADMAP.md).
 - **Core GraphQL CRUD (v0.2.x, in progress)** — recipe and dictionary queries, `createRecipe` / `updateRecipe` /
   `deleteRecipe`, `rateRecipe` with rating validation and comment upserts, per-request DataLoaders (no N+1),
   error masking with `PublicError` (see [API errors](#api-errors)), clear errors for malformed IDs and unknown
-  references, shared test factories and fixtures, continuous integration (ruff + pytest); the remaining
-  tasks are tests cleanup and refactoring into packages
+  references, shared test factories and fixtures, continuous integration (ruff + pytest), and the recipe code
+  split into a package (see [Code layout](#code-layout)); still ahead: the same split for auth, a typed
+  request context with central configuration, and a few small API fixes
 - **Planned** — Elasticsearch search (v0.3), observability dashboards (v0.4), Kafka event-driven index sync
   (v0.5), reverse proxy (v0.6)
 

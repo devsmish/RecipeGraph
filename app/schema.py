@@ -13,31 +13,12 @@ from auth import (
     hash_refresh_token,
     verify_password,
 )
-from context import require_user
 from db import async_session_maker, engine
 from error_handling import ErrorLoggingExtension
 from errors import PublicError
 from models import RefreshToken as RefreshTokenModel
 from models import User as UserModel
-from recipes import (
-    CreateRecipeInput,
-    Ingredient,
-    IngredientCategory,
-    RateRecipeInput,
-    Rating,
-    Recipe,
-    RecipeCategory,
-    UpdateRecipeInput,
-    resolve_create_recipe,
-    resolve_delete_recipe,
-    resolve_ingredient_categories,
-    resolve_ingredients,
-    resolve_my_recipes,
-    resolve_rate_recipe,
-    resolve_recipe,
-    resolve_recipe_categories,
-    resolve_update_recipe,
-)
+from recipes import RecipeMutation, RecipeQuery
 
 
 class UsernameOrEmailTakenError(PublicError):
@@ -91,7 +72,7 @@ class LoginInput:
 
 
 @strawberry.type
-class Query:
+class Query(RecipeQuery):
     @strawberry.field(description="Liveness check — does not touch any dependency.")
     def hello(self) -> str:
         return "RecipeGraph API is alive"
@@ -107,30 +88,9 @@ class Query:
         user_model = info.context["user"]
         return User.from_model(user_model) if user_model else None
 
-    @strawberry.field(description="A single recipe by id.")
-    async def recipe(self, id: strawberry.ID) -> Recipe:
-        return await resolve_recipe(id)
-
-    @strawberry.field(description="Recipes belonging to the currently authenticated user.")
-    async def my_recipes(self, info: strawberry.Info) -> list[Recipe]:
-        user = require_user(info)
-        return await resolve_my_recipes(user.id)
-
-    @strawberry.field(description="All recipe categories (e.g. Salads, Soups) — one per recipe.")
-    async def recipe_categories(self) -> list[RecipeCategory]:
-        return await resolve_recipe_categories()
-
-    @strawberry.field(description="All ingredient categories (e.g. Meat, Vegetables).")
-    async def ingredient_categories(self) -> list[IngredientCategory]:
-        return await resolve_ingredient_categories()
-
-    @strawberry.field(description="Ingredient master list, optionally filtered by name.")
-    async def ingredients(self, search: str | None = None) -> list[Ingredient]:
-        return await resolve_ingredients(search)
-
 
 @strawberry.type
-class Mutation:
+class Mutation(RecipeMutation):
     @strawberry.mutation(description="Create a new user account and return auth tokens.")
     async def register(self, input: RegisterInput) -> AuthPayload:
         async with async_session_maker() as session:
@@ -227,37 +187,6 @@ class Mutation:
             await session.commit()
 
         return True
-
-    @strawberry.mutation(description="Create a new recipe. Requires authentication.")
-    async def create_recipe(self, info: strawberry.Info, input: CreateRecipeInput) -> Recipe:
-        user = require_user(info)
-        return await resolve_create_recipe(user.id, input)
-
-    @strawberry.mutation(
-        description="Update an existing recipe. Only the recipe's author may do this."
-    )
-    async def update_recipe(
-            self, info: strawberry.Info, id: strawberry.ID, input: UpdateRecipeInput
-    ) -> Recipe:
-        user = require_user(info)
-        return await resolve_update_recipe(user.id, id, input)
-
-    @strawberry.mutation(
-        description="Delete a recipe. Only the recipe's author may do this. "
-                    "Idempotent for an already-deleted or unknown id."
-    )
-    async def delete_recipe(self, info: strawberry.Info, id: strawberry.ID) -> bool:
-        user = require_user(info)
-        return await resolve_delete_recipe(user.id, id)
-
-    @strawberry.mutation(
-        description="Rate a recipe — upsert: rating the same recipe again updates "
-                    "your existing rating instead of creating a new one. Provide commentText to "
-                    "also leave or replace a comment on this rating."
-    )
-    async def rate_recipe(self, info: strawberry.Info, input: RateRecipeInput) -> Rating:
-        user = require_user(info)
-        return await resolve_rate_recipe(user.id, input)
 
 
 schema = strawberry.Schema(query=Query, mutation=Mutation, extensions=[ErrorLoggingExtension])
